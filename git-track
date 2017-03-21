@@ -22,6 +22,61 @@ toupper() { printf '%s\n' "$*"|tr '[a-z]' '[A-Z]'; }
 
 ##
 # tracker library interface
+gitrack_help()
+{
+	case "${1}" in
+	commands)
+		echo 'git-track commands: config, open, close, reopen, comment, reply'
+		;;
+	config) echo 'usage: git-track config <options>'
+		echo "  This is a wrapper to 'git-config -f .gitrack/config ...'"
+		echo "  See: 'git help config' for <options> description."
+		;;
+
+	list)	echo 'usage: git-track list <type> [<options>]'
+		echo '  options:'
+		echo '    --open			List only open entries'
+		echo '    --closed			List only closed entries'
+		echo '    --status=<status>		List entries with a given status'
+		echo '    --tag=<tag>			List entries with a given tag'
+		;;
+
+	new)	# Always state=open, status=new
+		echo 'usage: git-track new <type> [<options>]'
+		echo '  options:'
+		echo '    --severity=<severity>		Specify the severity of the entry'
+		echo '    --attach=<file>		Attach the specified file when opening the entry'
+		echo '    --tag=<tags>			Initial search tags of the entry'
+		;;
+
+	update)
+		echo 'usage: git-track update <type> <ref> <options>'
+		echo '  options:'
+		echo '    --state=<state>		Change an entries state to <state> (close or open).'
+		echo '    --status=<status>		Change the status of an entry.'
+		echo '    --severity=<secerity>		Change the severity of an entry.'
+		echo '    --attach=<file>		Attach a file to an existing entry.'
+		echo '    --tag=<tags>			Tag the entry with the specified tags.'
+		;;
+
+	## Generally these are all wrappers to 'update'
+	reopen)	echo 'usage: git-track reopen <type>'
+		echo "  This is a wrapper to git-track update --state=open ...'"
+		;;
+	close)	echo 'usage: git-track close <type> <ref> <status>'
+		echo "  This is a wrapper to git-track update --state=close ...'"
+		;;
+	comment) echo 'usage: git-track comment <type> <ref> [--attach=<file>]'
+		;;
+	reply)	echo 'usage: git-track reply <type> <ref> <comment_rev> [--attach=<file>]'
+		;;
+
+	*)		usage;;
+	esac
+
+	printf '\nReport bugs to http://github.com/major0/gitrack\n'
+	exit 0
+}
 gitrack_config() { git config -f '.gitrack/config' "$@"; }
 gitrack_init()
 {
@@ -50,31 +105,38 @@ gitrack_init()
 	git add '.gitrack' && git commit -m 'Initializing Gitrack distributed bug/issue/note tracker'
 	exit 0
 }
+gitrack_list()
+{
+	for arg; do case "${arg}" in (help|--help) gitrack_help list;;esac;done
+	types="$(ls -C1 -d .gtrack/*/ 2>/dev/null)"
+	if test -z "${types}"; then
+		echo 'No entries in tracker'
+		exit 0
+	fi
+}
 
 ##
 # CLI argument handling
-case "$1" in
--h|--help|help)
-	usage
-	;;
---init) gitrack_init;;
--*)	die "unknown option '${1}'" ;;
-*)	;;
+cmd="${1}"
+shift
+case "${cmd}" in
+-h|--help|help)	gitrack_help "$@";;
+--init)		gitrack_init "$@";;
+-*)		die "unknown option '${cmd}'";;
+*)		;;
 esac
 
 if ! test -d '.gitrack'; then
 	die "tracker database needs to be initialized with 'git track --init'"
 fi
 
-cmd="${1}"
-shift
 case "${cmd}" in
 config)		gitrack_config "$@";;
-open)		gitrack_open "$@";;
+new|open)	gitrack_new "$@";;
 close)		gitrack_close "$@";;
 reopen)		gitrack_reopen "$@";;
 comment)	gitrack_comment "$@";;
 reply)		gitrack_reply "$@";;
-list)		gitrack_list "$@";;
+list|ls)	gitrack_list "$@";;
 *)		die "unknown operation '${cmd}'";;
 esac
