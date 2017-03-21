@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+# Copyright (C) 2016 Mark Ferrell
+#
+# The distributed Git <bug/issue/note/whatever> tracker
+
+USAGE='<operation> [options] [<type|entry>]'
+LONG_USAGE='Manage tracker entries.'
+SUBDIRECTORY_OK=Yes
+OPTIONS_SPEC=
+. git-sh-setup
+. git-sh-i18n
+require_work_tree_exists
+cd_to_toplevel
+
+##
+# utility routines
+err() { echo "error: $*" >&2; }
+die() { err "$*"; exit 1; }
+tolower() { printf '%s\n' "$*"|tr '[A-Z]' '[a-z]'; }
+toupper() { printf '%s\n' "$*"|tr '[a-z]' '[A-Z]'; }
+
+##
+# tracker library interface
+gitrack_config() { git config -f '.gitrack/config' "$@"; }
+gitrack_init()
+{
+	# init the tracker tree
+	mkdir '.gitrack'
+	gitrack_config --add webui.autoindex true
+	gitrack_config --add webui.indexfile BUGS.md
+
+	# allowed status types for open
+	gitrack_config --add status.open new,reopened,verified,assigned,fixed
+	gitrack_config --add status.close duplicate,wontfix,verified
+	# Severity is a bit of a special snowflake
+	gitrack_config --add status.severity low,medium,high,critical
+
+	# Workflow for open entries
+	gitrack_config --add open.new open.verified,open.assigned,close.duplicate
+	gitrack_config --add open.verified open.assigned,close.duplicate,close.wontfix
+	gitrack_config --add open.assigned open.fixed,close.duplicate,close.wontfix
+	gitrack_config --add open.fixed close.verified
+
+	# Workflow for closed entries
+	gitrack_config --add close.verified open.reopen
+	gitrack_config --add close.wontfix open.reopen
+	gitrack_config --add close.duplicate open.reopen
+
+	git add '.gitrack' && git commit -m 'Initializing Gitrack distributed bug/issue/note tracker'
+	exit 0
+}
+
+##
+# CLI argument handling
+case "$1" in
+-h|--help|help)
+	usage
+	;;
+--init) gitrack_init;;
+-*)	die "unknown option '${1}'" ;;
+*)	;;
+esac
+
+if ! test -d '.gitrack'; then
+	die "tracker database needs to be initialized with 'git track --init'"
+fi
+
+cmd="${1}"
+shift
+case "${cmd}" in
+config)		gitrack_config "$@";;
+open)		gitrack_open "$@";;
+close)		gitrack_close "$@";;
+reopen)		gitrack_reopen "$@";;
+comment)	gitrack_comment "$@";;
+reply)		gitrack_reply "$@";;
+list)		gitrack_list "$@";;
+*)		die "unknown operation '${cmd}'";;
+esac
