@@ -1,0 +1,16 @@
+[webui]
+	autoindex = true
+	indexfile = BUGS.md
+[status]
+	open = new,reopened,verified,assigned,fixed
+	close = duplicate,wontfix,verified
+	severity = low,medium,high,critical
+[open]
+	new = open.verified,open.assigned,close.duplicate
+	verified = open.assigned,close.duplicate,close.wontfix
+	assigned = open.fixed,close.duplicate,close.wontfix
+	fixed = close.verified
+[close]
+	verified = open.reopen
+	wontfix = open.reopen
+	duplicate = open.reopen
