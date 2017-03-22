@@ -32,6 +32,26 @@ getarg()
 	esac
 	return 0
 }
+list_fmt()
+{
+	__list_fmt_max=0
+	for arg; do
+		__list_fmt_len="$(printf '%s' "${arg}"|wc -c)"
+		if test "${__list_fmt_len}" -gt "${__list_fmt_max}"; then
+			__list_fmt_max="${__list_fmt_len}"
+		fi
+	done
+	while test "$#" -gt '0'; do
+		__list_len=$((${__list_len} + ${__list_fmt_max} + 2))
+		if test "${__list_len}" -gt '75'; then
+			__list_len=0
+			printf '\n'
+		fi
+		printf '  %*s' "${__list_fmt_max}" "${1}"
+		shift
+	done
+	printf '\n'
+}
 edit_tmp()
 {
 	: "edit_tmp($*)"
@@ -40,7 +60,6 @@ edit_tmp()
 	set -- "${__edit_tmpfile}"
 	unset __edit_tmpfile
 cat >"${1}"<<EOF
-
 
 # Please enter a message for your entry. Lines starting with '#' will be
 # ignored, and an empty message aborts the commit.
@@ -177,25 +196,35 @@ gitrack_list()
 	## Parse our CLI options
 	# Random --help in the CLI
 	for arg; do case "${arg}" in (help|--help) gitrack_help list;;esac;done
-	# Options
-	# FIXME .. where are our options?!?
 
-	##
-	# Sanity checks
-	types="$(ls -C1 -d .gitrack/*/ 2>/dev/null)"
-	! test -z "${types}" || die 'No entries in tracker'
-	! test "$#" -eq '0' || die 'No entry type specified'
-	test -d ".gitrack/${1}" || die "No '${1}' entries in the tracker"
-	entries="$(ls -C1 -d ".gitrack/${type}/" 2>/dev/null)"
-	! test -z "${entries}" || die "No entries in the '${type}' tracker"
+	# No options, list available types.
+	if test "$#" -eq '0'; then
+		set -- $(ls -C1 -d .gitrack/*/ 2>/dev/null|sed -e 's,.gitrack,,;s,/,,g')
+		test "$#" -gt '0' || die 'No entries in tracker'
+		echo "Types:"
+		list_fmt "$@"
+		exit 0
+	fi
 
-	##
-	# itterate the entries.. assuming they are all valid
-	for entry in ${entries}; do
-		# FIXME This is just a placeholder until we have something to
-		# actually parse.
-		echo "${entry}"
-	done
+	# List the head of every bug
+	test -d "$(echo ".gitrack/${1}"*)" || die "No '${1}' entries in the tracker"
+
+	case "${1}" in
+	*/*)	type="${1%%/*}"
+		set -- $(ls -C1 -d ".gitrack/${1}"*/ 2>/dev/null)
+		test "$#" -gt '0' || die "No such entry '${1}'"
+		;;
+	*)	type="${1}"
+		set -- $(ls -C1 -d ".gitrack/${1}"*/*/ 2>/dev/null)
+		test "$#" -gt '0' || die "No entries in the '${type}' tracker"
+		;;
+	esac
+	for entry; do
+		ref="$(cat "${entry}/head")"
+		echo "Entry: ${type}/${ref}"
+		cat "${entry}/refs/${ref}"
+		printf '\n'
+	done | git_pager
 }
 gitrack_new()
 {
