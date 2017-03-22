@@ -110,49 +110,54 @@ gitrack_help()
 	: "gitrack_help($*)"
 	case "${1}" in
 	commands)
-		echo 'git-track commands: config, open, close, reopen, comment, reply'
+		echo 'git-track commands:'
+		printf '  %-20s %s\n' config	'Modify the tracker config'
+		printf '  %-20s %s\n' list	'List existing tracks and track types'
+		printf '  %-20s %s\n' new	'Create a new track'
+		printf '  %-20s %s\n' update	'Update/Modify an existing track'
+		printf '  %-20s %s\n' show	'Display the specified track'
+		printf '  %-20s %s\n' close	'Close an existing track (wrapper to update)'
+		printf '  %-20s %s\n' reopen	'Reopen a closed track (wrapper to update)'
+		printf '  %-20s %s\n' comment	'Comment on an existing track'
 		;;
 	config) echo 'usage: git-track config <options>'
 		echo "  This is a wrapper to 'git-config -f .gitrack/config ...'"
 		echo "  See: 'git help config' for <options> description."
 		;;
 
-	list)	echo 'usage: git-track list <type> [<options>]'
-		echo '  options:'
-		echo '    --open			List only open entries'
-		echo '    --closed			List only closed entries'
-		echo '    --status=<status>		List entries with a given status'
-		echo '    --tag=<tag>			List entries with a given tag'
+	list)	printf 'usage: git-track list [<type>] [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--open'			'List only open entries'
+		printf '  %-20s %s\n' '--closed'		'List only closed entries'
+		printf '  %-20s %s\n' '--status=<status>'	'List entries with a given status'
+		printf '  %-20s %s\n' '--tag=<tag>'		'List entries with a given tag'
 		;;
 
 	new)	# Always state=open, status=new
-		echo 'usage: git-track new <type> [<options>]'
-		echo '  options:'
-		echo '    --severity=<severity>		Specify the severity of the entry'
-		echo '    --attach=<file>		Attach the specified file when opening the entry'
-		echo '    --tag=<tags>			Initial search tags of the entry'
+		printf 'usage: git-track new <type> [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--severity=<severity>'	'pecify the severity of the entry'
+		printf '  %-20s %s\n' '--attach=<file>'		'ttach the specified file when opening the entry'
+		printf '  %-20s %s\n' '--tag=<tags>'		'Initial search tags of the entry'
 		;;
 
 	update)
-		echo 'usage: git-track update <type> <ref> <options>'
-		echo '  options:'
-		echo '    --state=<state>		Change an entries state to <state> (close or open).'
-		echo '    --status=<status>		Change the status of an entry.'
-		echo '    --severity=<secerity>		Change the severity of an entry.'
-		echo '    --attach=<file>		Attach a file to an existing entry.'
-		echo '    --tag=<tags>			Tag the entry with the specified tags.'
+		printf 'usage: git-track update <type>/<ref> <options>\n options:\n'
+		printf '  %-20s %s\n' '--state=<state>'		'Change an entries state to <state> (close or open).'
+		printf '  %-20s %s\n' '--status=<status>'	'Change the status of an entry.'
+		printf '  %-20s %s\n' '--severity=<secerity>'	'Change the severity of an entry.'
+		printf '  %-20s %s\n' '--attach=<file>'		'Attach a file to an existing entry.'
+		printf '  %-20s %s\n' '--tag=<tags>'		'Tag the entry with the specified tags.'
 		;;
 
+
 	## Generally these are all wrappers to 'update'
-	reopen)	echo 'usage: git-track reopen <type>'
-		echo "  This is a wrapper to git-track update --state=open ...'"
+	reopen)	echo 'usage: git-track reopen <type>/<ref>'
+		echo 'Alias for: git-track update --state=open --status=reopen ...'
 		;;
 	close)	echo 'usage: git-track close <type> <ref> <status>'
-		echo "  This is a wrapper to git-track update --state=close ...'"
+		echo 'Alias for: git-track update --state=close ...'
 		;;
-	comment) echo 'usage: git-track comment <type> <ref> [--attach=<file>]'
-		;;
-	reply)	echo 'usage: git-track reply <type> <ref> <comment_rev> [--attach=<file>]'
+	comment) echo 'usage: git-track comment <type>/<ref> [--attach=<file>]'
+		echo 'Alias for: git-track update <type>/<ref> [--attach=<file>]'
 		;;
 
 	*)		usage;;
