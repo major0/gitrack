@@ -27,7 +27,8 @@ getarg()
 		;;
 	1,*)	return 1
 		;;
-	*)	test "$#" -gt 1 && return 1
+	*)	test "$#" -gt 1 || return 1
+		case "${2}" in (-*) return 1;; esac
 		echo "$2";;
 	esac
 	return 0
@@ -102,6 +103,56 @@ edit_msg()
 	fi
 	return 0
 }
+gitrack_type()
+{
+	: "gitrack_type($*)"
+	printf '%s\n' "${1%%/*}"
+}
+gitrack_ref()
+{
+	: "gitrack_ref($*)"
+	test "${1}" != "${1##*/}" || return 0
+	set -- "$(echo ".gitrack/${1%%/}"*)"
+	test -e "${1}" || return 1
+	printf '%s\n' "${1##*/}"
+}
+gitrack_exists()
+{
+	: "gitrack_exist($*)"
+	gitrack_ref "${1}" > /dev/null || die "invalid track '${1}'"
+}
+gitrack_set()
+{
+	: "gitrack_set($*)"
+	test -d ".gitrack/${1%/*}" || die "cannot add '${1}'"
+	if test -e ".gitrack/${1}"; then
+		test -f ".gitrack/${1}" || die "not a file '${1}'"
+	fi
+	echo "${2}" > ".gitrack/${1}"
+}
+gitrack_get()
+{
+	: "gitrack_get($*)"
+	test -e ".gitrack/${1}" || die "invalid entry '${1}'"
+	test -f ".gitrack/${1}" || die "not a file '${1}'"
+	cat ".gitrack/${1}"
+}
+
+gitrack_add()
+{
+	: "gitrack_add($*)"
+	if ! test -d ".gitrack/${1%/*}"; then
+		mkdir -p ".gitrack/${1%/*}"
+		echo "${2}" > ".gitrack/${1}" || die "failed to add '${1}'"
+	fi
+}
+gitrack_del()
+{
+	: "gitrack_del($*)"
+	if test -e ".gitrack/${1}"; then
+		git rm -f ".gitrack/${1}" || die "failed to delete '${1}'"
+	fi
+}
 
 ##
 # tracker library interface
@@ -134,16 +185,13 @@ gitrack_help()
 
 	new)	# Always state=open, status=new
 		printf 'usage: git-track new <type> [<options>]\n options:\n'
-		printf '  %-20s %s\n' '--severity=<severity>'	'pecify the severity of the entry'
 		printf '  %-20s %s\n' '--attach=<file>'		'ttach the specified file when opening the entry'
 		printf '  %-20s %s\n' '--tag=<tags>'		'Initial search tags of the entry'
 		;;
 
 	update)
 		printf 'usage: git-track update <type>/<ref> <options>\n options:\n'
-		printf '  %-20s %s\n' '--state=<state>'		'Change an entries state to <state> (close or open).'
 		printf '  %-20s %s\n' '--status=<status>'	'Change the status of an entry.'
-		printf '  %-20s %s\n' '--severity=<secerity>'	'Change the severity of an entry.'
 		printf '  %-20s %s\n' '--attach=<file>'		'Attach a file to an existing entry.'
 		printf '  %-20s %s\n' '--tag=<tags>'		'Tag the entry with the specified tags.'
 		;;
@@ -151,13 +199,10 @@ gitrack_help()
 
 	## Generally these are all wrappers to 'update'
 	reopen)	echo 'usage: git-track reopen <type>/<ref>'
-		echo 'Alias for: git-track update --state=open --status=reopen ...'
 		;;
-	close)	echo 'usage: git-track close <type> <ref> <status>'
-		echo 'Alias for: git-track update --state=close ...'
+	close)	echo 'usage: git-track close <type>/<ref> <status>'
 		;;
 	comment) echo 'usage: git-track comment <type>/<ref> [--attach=<file>]'
-		echo 'Alias for: git-track update <type>/<ref> [--attach=<file>]'
 		;;
 
 	*)		usage;;
@@ -179,7 +224,7 @@ gitrack_init()
 	gitrack_config --add status.open new,reopened,verified,assigned,fixed
 	gitrack_config --add status.close duplicate,wontfix,verified
 	# Severity is a bit of a special snowflake
-	gitrack_config --add status.severity low,medium,high,critical
+	#gitrack_config --add status.severity low,medium,high,critical
 
 	# Workflow for open entries
 	gitrack_config --add open.new open.verified,open.assigned,close.duplicate
@@ -230,75 +275,219 @@ gitrack_list()
 	esac
 	for entry; do
 		ref="$(cat "${entry}/head")"
+		# FIXME: <type>/<ref>: <state> <status> <owner> <summary>
 		echo "Entry: ${type}/${ref}"
 		cat "${entry}/refs/${ref}"
 		printf '\n'
 	done | git_pager
 }
-gitrack_new()
+gitrack_entry()
 {
-	: "gitrack_new($*)"
-	## Parse our CLI options
-	# Random --help in the CLI
-	test "$#" -gt '0' || die 'no entry type specified'
-	for arg; do case "${arg}" in (help|--help) gitrack_help new;;esac;done
-	case "${1}" in (-*) die "invalid type '${1}'";; esac
-	entry_type="${1}"
+	: "gitrack_entry($*)"
 
-	# Options
-	# --severity=<severity>		Specify the severity of the entry
-	# --attach=<file>		Attach the specified file when opening the entry
-	# --tag=<tags>			Initial search tags of the entry
+	# FIXME validate status/state
 	while test "$#" -gt '0'; do
 		case "${1}" in
-		(--severity|--severity=*)
-			entry_severity="$(getarg "$@")" || gitrack_help new
+		(--type|--type=*)
+			entry_type="$(getarg "$@")" || die "option error '${1}'"
 			;;
-		(--attach|--attach=*)
+		(--ref|--ref=*)
+			# Add to an existing track
+			entry_ref="$(getarg "$@")" || die "option error '${1}'"
+			;;
+		(--state|--state=*)
+			entry_state="$(getarg "$@")" || die "option error '${1}'"
+			;;
+		(-m|--message|--message=*)
+			# Allow multiple message arguments
+			# FIXME this might be better handled higher up.
+			if test -z "${entry_summary}"; then
+				entry_summary="$(getarg "$@")" || die "option error '${1}'"
+				entry_body=''
+			elif test -z "${entry_body}"; then
+				entry_body="$(getarg "$@")" || die "option error '${1}'"
+			else
+				entry_body_append="$(getarg "$@")" || die "option error '${1}'"
+				entry_body="$(printf '%s\n\n%s\n' "${entry_body}" "${entry_body_append}")"
+				unset entry_body_append
+			fi
+			;;
+		(-s|--status|--status=*)
+			entry_status="$(getarg "$@")" || die "option error '${1}'"
+			;;
+		(-a|--attach|--attach=*)
 			entry_attach="$(getarg "$@")" || gitrack_help new
 			test -f "${attach}" || die "no such file '${attach}'"
 			;;
-		(--tag|--tag=*)
+		(-t|--tag|--tag=*)
 			entry_tags="$(getarg "$@")" || gitrack_help new
+			entry_tags="$(printf '%s' "${entry_tags}"|sed -e 's/,/ /g')"
 			;;
+		(-*)	die "unknown argument '${1}'";;
 		esac
 		shift 1
 	done
 
 	##
-	# Collect the message frum the user
+	# Sanity checks
+	! test -z "${entry_type}" || die 'no type specified'
+	if test -z "${entry_ref}"; then
+		test "${entry_state}" = 'open' || die 'new entries must be in an open state'
+		test "${entry_status}" = 'new' || die 'new entries must have an new status'
+	fi
+
+	##
+	# Prompt the user for a message
 	ENTRY_FILE="$(edit_tmp)" || die 'failed to make temp file'
-	echo "# type: ${entry_type}" >> "${ENTRY_FILE}"
-	test -z "${entry_severity}" || echo "# severity: $(tolower ${entry_severity})" >> "${ENTRY_FILE}"
-	test -z "${entry_attach}" || echo "# attachment: $(tolower ${entry_attach})" >> "${ENTRY_FILE}"
-	test -z "${entry_tags}" || echo "# tags: $(tolower ${entry_tags})" >> "${ENTRY_FILE}"
-	edit_msg "${ENTRY_FILE}" || exit 1
+	if test -z "${entry_summary}"; then
+		test -z "${entry_summary}" || printf '%s\n' "${entry_summary}" >> "${ENTRY_FILE}"
+		test -z "${entry_body}" || printf '\n%s\n' "${entry_body}" >> "${ENTRY_FILE}"
+		test -z "${entry_state}" || printf '# %20s: %s\n' state "$(tolower ${entry_state})" >> "${ENTRY_FILE}"
+		test -z "${entry_status}" || printf '# %20s: %s\n' status "$(tolower ${entry_status})" >> "${ENTRY_FILE}"
+		test -z "${entry_attach}" || printf '# %20s: %s\n' attachment "$(tolower ${entry_attach})" >> "${ENTRY_FILE}"
+		test -z "${entry_tags}" || printf '# %20s: %s\n' tags "$(tolower ${entry_tags})" >> "${ENTRY_FILE}"
+		edit_msg "${ENTRY_FILE}" || exit 1
+		entry_summary="$(edit_summary "${ENTRY_FILE}")"
+		entry_body="$(edit_body "${ENTRY_FILE}")"
+	fi
 
 	##
 	# Rewrite the message into rfc822 format
-	entry_summary="$(edit_summary "${ENTRY_FILE}")"
-	entry_body="$(edit_body "${ENTRY_FILE}")"
 	echo "Author: $(git config user.name) <$(git config user.email)>" > "${ENTRY_FILE}"
 	echo "Date: $(date -u)" >> "${ENTRY_FILE}"
-	echo "X-Type: ${entry_type}" >> "${ENTRY_FILE}"
-	echo "X-Stat: new" >> "${ENTRY_FILE}"
-	test -z "${entry_severity}" || echo "X-Severity: $(tolower ${entry_severity})" >> "${ENTRY_FILE}"
-	test -z "${entry_attach}" || echo "X-Attachment: $(tolower ${entry_attach})" >> "${ENTRY_FILE}"
-	test -z "${entry_tags}" || echo "X-Tags: $(tolower ${entry_tags})" >> "${ENTRY_FILE}"
+	printf 'X-Type: %s\n' "${entry_type}" >> "${ENTRY_FILE}"
+	test -z "${entry_ref}" || printf 'X-Ref: %s\n' "${entry_ref}" >> "${ENTRY_FILE}"
+	test -z "${entry_state}" || printf 'X-State: %s\n' "${entry_state}" >> "${ENTRY_FILE}"
+	test -z "${entry_status}" || printf 'X-Status: %s\n' "${entry_status}" >> "${ENTRY_FILE}"
+	test -z "${entry_tags}" || printf 'X-Tags: %s\n' "${entry_tags}" >> "${ENTRY_FILE}"
+	test -z "${entry_attach}" || printf 'X-Attach: %s\n' "${entry_attach}" >> "${ENTRY_FILE}"
 	printf 'Summary: %s\n\n%s\n' "${entry_summary}" "${entry_body}" >> "${ENTRY_FILE}"
+	# FIXME add support for GPG signing the entry?
 
 	##
-	# Commit the entry
+	# Construct the tracking entry
 	entry_hash="$(git hash-object "${ENTRY_FILE}")"
-	if test -z "${entry_hash}"; then
-		die "failed to generate object hash for '${ENTRY_FILE}'"
-	fi
-	mkdir -p ".gitrack/${entry_type}/${entry_hash}/refs" || die "failed to add entry '${entry_hash}'"
-	mv "${ENTRY_FILE}" ".gitrack/${entry_type}/${entry_hash}/refs/${entry_hash}"
-	git add ".gitrack/${entry_type}/${entry_hash}"
-	git commit -m "Track ${entry_type}($(git rev-parse --short ${entry_hash})): ${entry_summary}" -m "${entry_body}"
-}
+	! test -z "${entry_hash}" || die "failed to generate object hash for '${ENTRY_FILE}'"
 
+	# new track?
+	if test -z "${entry_ref}"; then
+		entry_ref="${entry_hash}"
+		mkdir -p ".gitrack/${entry_type}/${entry_ref}/refs" || die "failed to add entry '${entry_ref}'"
+		gitrack_set "${entry_type}/${entry_ref}/head" "${entry_ref}"
+	else	# existing track
+		previous_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
+		previous_status="$(gitrack_get "${entry_type}/${entry_ref}/status")"
+		previous_owner="$(gitrack_get "${entry_type}/${entry_ref}/owner")"
+
+		# FIXME validate workflow
+	fi
+
+	mv "${ENTRY_FILE}" ".gitrack/${entry_type}/${entry_ref}/refs/${entry_hash}"
+	test -z "${entry_state}" || gitrack_set "${entry_type}/${entry_ref}/state" "${entry_state}"
+	test -z "${entry_status}" || gitrack_set "${entry_type}/${entry_ref}/status" "${entry_status}"
+	test -z "${entry_owner}" || gitrack_set "${entry_type}/${entry_ref}/owner" "${entry_owner}"
+
+	for entry_tag in ${entry_tags}; do
+		test -d ".gitrack/${entry_type}/${entry_ref}/tags" || mkdir -p ".gitrack/${entry_type}/${entry_ref}/tags"
+		case "${entry_tag}" in
+		(-*)	gitrack_del "${entry_type}/${entry_ref}/tags/${entry_tag}";;
+		(*)	gitrack_add "${entry_type}/${entry_ref}/tags/${entry_tag}" "${entry_hash}";;
+		esac
+	done
+
+	##
+	# Commit the track
+	git add ".gitrack/${entry_type}/${entry_ref}"
+	if test "${entry_ref}" = "${entry_hash}"; then
+		entry_action='New'
+	elif test "${entry_state}" != "${previous_state}"; then
+		if test "${entry_state}" = 'close'; then
+			entry_action='Closed'
+		else
+			entry_action='Reopen'
+		fi
+	else
+		entry_action='Update'
+	fi
+	git commit -m "${entry_action} ${entry_type}($(git rev-parse --short ${entry_ref})): ${entry_summary}" -m "${entry_body}"
+}
+gitrack_new()
+{
+	: "gitrack_new($*)"
+	## Parse our CLI options
+	test "$#" -gt '0' || die 'no entry type specified'
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_help new;;esac;done
+	# Filter out valid arguments
+	for arg; do
+		case "${arg}" in
+		#(--attach|--attach=*);;
+		(-m|--message|--message=*);;
+		(-t|--tag|--tag=*);;
+		(-*) die "invalid option '${arg}'";;
+		esac
+	done
+	# Grab our type
+	entry_type="$(gitrack_type "${1}")"
+	entry_ref="$(gitrack_ref "${1}")"
+	test -z "${entry_ref}" || die "illegal entry track specified '${1}'"
+	# Collect the message frum the user
+	gitrack_entry --state='open' --status='new' --type="${entry_type}" "${@}"
+}
+gitrack_close()
+{
+	: "gitrack_close($*)"
+	## parse our CLI options
+	test "$#" -gt '0' || die 'no entry type specified'
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_help close;;esac;done
+	# Filter out valid arguments
+	for arg; do
+		case "${arg}" in
+		(-m|--message|--message=*);;
+		(-*) die "invalid option '${arg}'";;
+		esac
+	done
+	# sanity checks
+	gitrack_exists "${1}"
+	entry_type="$(gitrack_type "${1}")"
+	entry_ref="$(gitrack_ref "${1}")"
+	entry_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
+	test "${entry_state}" = 'open' || die "already closed '${entry_type}/${entry_ref}'"
+	entry_status="${2}"
+	! test -z "${entry_status}" || die 'no status specified'
+	# close track
+	gitrack_entry --type="${entry_type}" --ref="${entry_ref}" --state='closed' --status="${entry_status}" "${@}"
+}
+gitrack_update()
+{
+	: "gitrack_update($*)"
+	## Parse our CLI options
+	test "$#" -gt '0' || die 'no entry type specified'
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_help update;;esac;done
+	# Grab our type
+	case "${1}" in (-*) die "invalid type '${1}'";; esac
+	entry_type="$(gitrack_type "${1}")"
+	entry_ref="$(gitrack_ref "${1}")"
+	shift
+	# Filter out valid arguments
+	for arg; do
+		case "${arg}" in
+		#(--attach|--attach=*);;
+		(-s|--status|--status=*);;
+		(-m|--message|--message=*);;
+		(-t|--tag|--tag=*);;
+		(-*) die "invalid option '${arg}'";;
+		esac
+	done
+	# sanity checks
+	gitrack_exists "${1}"
+	entry_type="$(gitrack_type "${1}")"
+	entry_ref="$(gitrack_ref "${1}")"
+	# update track
+	gitrack_entry --type="${entry_type}" --entry_ref="${entry_ref}" "${@}"
+}
 ##
 # CLI argument handling
 cmd="${1}"
