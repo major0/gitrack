@@ -1,11 +1,12 @@
 # README
 
 Gitrack is a distributed issue/bug/note/whatever tracker for git (and possibly
-others) written in POSIX shell and inspired by [http://www.bugseverywhere.org
-BugsEverywhere]. Gitracker is different from BugsEverywhere in that it tries to
-be a generic interface for tracking .. well .. anything (not just bugs) and
-aims to support file attachments, threaded comment history, and customizable
-workflow.  All while being written in POSIX shell script.
+others) written in POSIX shell and inspired by
+[BugsEverywhere](http://www.bugseverywhere.org). Gitracker is
+different from BugsEverywhere in that it tries to be a generic interface for
+tracking .. well .. anything (not just bugs) and aims to support file
+attachments, threaded comment history, and customizable workflow.  All while
+being written in POSIX shell script.
 
 ## Benefits
 
@@ -20,6 +21,12 @@ workflow.  All while being written in POSIX shell script.
    `git push` so that all entries are browsable from GitHub/GitLab (modifying
    issues from the webinterface would require specialized software on the
    server-side).
+
+## Warning
+
+This code is very young (less than 20 commits at the time of this writing).
+The work is still in flux and many features are not yet complete and the
+tracker database format may or may not change.
 
 ## License
 
