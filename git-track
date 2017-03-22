@@ -3,6 +3,7 @@
 # Copyright (C) 2016 Mark Ferrell
 #
 # The distributed Git <bug/issue/note/whatever> tracker
+#set -x
 
 USAGE='<operation> [options] [<type|entry>]'
 LONG_USAGE='Manage tracker entries.'
@@ -19,11 +20,75 @@ err() { echo "error: $*" >&2; }
 die() { err "$*"; exit 1; }
 tolower() { printf '%s\n' "$*"|tr '[A-Z]' '[a-z]'; }
 toupper() { printf '%s\n' "$*"|tr '[a-z]' '[A-Z]'; }
+getarg()
+{
+	case "$#,$1" in
+	*,*=*)	echo `expr "r$1" : 'r-[^=]*=\(.*\)'`
+		;;
+	1,*)	return 1
+		;;
+	*)	test "$#" -gt 1 && return 1
+		echo "$2";;
+	esac
+	return 0
+}
+edit_tmp()
+{
+	: "edit_tmp($*)"
+	__edit_tmpfile="$(mktemp /tmp/gitrack.XXXXXX)"
+	test -f "${__edit_tmpfile}" || return 1
+	set -- "${__edit_tmpfile}"
+	unset __edit_tmpfile
+cat >"${1}"<<EOF
+
+
+# Please enter a message for your entry. Lines starting with '#' will be
+# ignored, and an empty message aborts the commit.
+EOF
+
+	echo "${1}"
+}
+edit_summary()
+{
+	: "edit_summary($*)"
+	test -f "${1}" || die "no such file '${1}'"
+	head -n 1 "${1}" | sed -e 's/^[[:space:]]*//g;s/[[:space:]]*$//g'
+}
+edit_body()
+{
+	: "edit_body($*)"
+	test -f "${1}" || die "no such file '${1}'"
+	set -- "${1}" $(wc -l "${1}" 2>/dev/null)
+
+	# delete leading/trailing newlines
+	tail -n "$((${2} - 1))" "${1}" | \
+		sed -e :a -e 's/^[[:space:]]*//g;/./,$!d;/^\n*$/{$d;N;};/\n$/ba'
+}
+edit_msg()
+{
+	: "edit_msg($*)"
+	test -f "${1}" || die "no such file '${1}'"
+	git_editor "${1}"
+	sed -i -e 's/^#.*//' "${1}"
+	if test -z "$(sed -e 's/[[:space:]]*//g' "${1}")"; then
+		err 'empty message, aborting'
+		rm -f "${1}"
+		return 1
+	fi
+
+	if test -z "$(edit_summary "${1}")"; then
+		err 'empty summary line'
+		rm -f "${1}"
+		return 1
+	fi
+	return 0
+}
 
 ##
 # tracker library interface
 gitrack_help()
 {
+	: "gitrack_help($*)"
 	case "${1}" in
 	commands)
 		echo 'git-track commands: config, open, close, reopen, comment, reply'
@@ -80,6 +145,7 @@ gitrack_help()
 gitrack_config() { git config -f '.gitrack/config' "$@"; }
 gitrack_init()
 {
+	: "gitrack_init($*)"
 	# init the tracker tree
 	mkdir '.gitrack'
 	gitrack_config --add webui.autoindex true
@@ -107,12 +173,92 @@ gitrack_init()
 }
 gitrack_list()
 {
+	: "gitrack_list($*)"
+	## Parse our CLI options
+	# Random --help in the CLI
 	for arg; do case "${arg}" in (help|--help) gitrack_help list;;esac;done
-	types="$(ls -C1 -d .gtrack/*/ 2>/dev/null)"
-	if test -z "${types}"; then
-		echo 'No entries in tracker'
-		exit 0
+	# Options
+	# FIXME .. where are our options?!?
+
+	##
+	# Sanity checks
+	types="$(ls -C1 -d .gitrack/*/ 2>/dev/null)"
+	! test -z "${types}" || die 'No entries in tracker'
+	! test "$#" -eq '0' || die 'No entry type specified'
+	test -d ".gitrack/${1}" || die "No '${1}' entries in the tracker"
+	entries="$(ls -C1 -d ".gitrack/${type}/" 2>/dev/null)"
+	! test -z "${entries}" || die "No entries in the '${type}' tracker"
+
+	##
+	# itterate the entries.. assuming they are all valid
+	for entry in ${entries}; do
+		# FIXME This is just a placeholder until we have something to
+		# actually parse.
+		echo "${entry}"
+	done
+}
+gitrack_new()
+{
+	: "gitrack_new($*)"
+	## Parse our CLI options
+	# Random --help in the CLI
+	test "$#" -gt '0' || die 'no entry type specified'
+	for arg; do case "${arg}" in (help|--help) gitrack_help new;;esac;done
+	case "${1}" in (-*) die "invalid type '${1}'";; esac
+	entry_type="${1}"
+
+	# Options
+	# --severity=<severity>		Specify the severity of the entry
+	# --attach=<file>		Attach the specified file when opening the entry
+	# --tag=<tags>			Initial search tags of the entry
+	while test "$#" -gt '0'; do
+		case "${1}" in
+		(--severity|--severity=*)
+			entry_severity="$(getarg "$@")" || gitrack_help new
+			;;
+		(--attach|--attach=*)
+			entry_attach="$(getarg "$@")" || gitrack_help new
+			test -f "${attach}" || die "no such file '${attach}'"
+			;;
+		(--tag|--tag=*)
+			entry_tags="$(getarg "$@")" || gitrack_help new
+			;;
+		esac
+		shift 1
+	done
+
+	##
+	# Collect the message frum the user
+	ENTRY_FILE="$(edit_tmp)" || die 'failed to make temp file'
+	echo "# type: ${entry_type}" >> "${ENTRY_FILE}"
+	test -z "${entry_severity}" || echo "# severity: $(tolower ${entry_severity})" >> "${ENTRY_FILE}"
+	test -z "${entry_attach}" || echo "# attachment: $(tolower ${entry_attach})" >> "${ENTRY_FILE}"
+	test -z "${entry_tags}" || echo "# tags: $(tolower ${entry_tags})" >> "${ENTRY_FILE}"
+	edit_msg "${ENTRY_FILE}" || exit 1
+
+	##
+	# Rewrite the message into rfc822 format
+	entry_summary="$(edit_summary "${ENTRY_FILE}")"
+	entry_body="$(edit_body "${ENTRY_FILE}")"
+	echo "Author: $(git config user.name) <$(git config user.email)>" > "${ENTRY_FILE}"
+	echo "Date: $(date -u)" >> "${ENTRY_FILE}"
+	echo "X-Type: ${entry_type}" >> "${ENTRY_FILE}"
+	echo "X-Stat: new" >> "${ENTRY_FILE}"
+	test -z "${entry_severity}" || echo "X-Severity: $(tolower ${entry_severity})" >> "${ENTRY_FILE}"
+	test -z "${entry_attach}" || echo "X-Attachment: $(tolower ${entry_attach})" >> "${ENTRY_FILE}"
+	test -z "${entry_tags}" || echo "X-Tags: $(tolower ${entry_tags})" >> "${ENTRY_FILE}"
+	printf 'Summary: %s\n\n%s\n' "${entry_summary}" "${entry_body}" >> "${ENTRY_FILE}"
+
+	##
+	# Commit the entry
+	entry_hash="$(git hash-object "${ENTRY_FILE}")"
+	if test -z "${entry_hash}"; then
+		die "failed to generate object hash for '${ENTRY_FILE}'"
 	fi
+	mkdir -p ".gitrack/${entry_type}/${entry_hash}/refs" || die "failed to add entry '${entry_hash}'"
+	mv "${ENTRY_FILE}" ".gitrack/${entry_type}/${entry_hash}/refs/${entry_hash}"
+	git add ".gitrack/${entry_type}/${entry_hash}"
+	git commit -m "Track ${entry_type}($(git rev-parse --short ${entry_hash})): ${entry_summary}" -m "${entry_body}"
 }
 
 ##
