@@ -114,7 +114,7 @@ gitrack_ref()
 	test "${1}" != "${1##*/}" || return 0
 	set -- "$(echo ".gitrack/${1%%/}"*)"
 	test -e "${1}" || return 1
-	printf '%s\n' "${1##*/}"
+	printf '%s' "${1##*/}"
 }
 gitrack_exists()
 {
@@ -133,9 +133,9 @@ gitrack_set()
 gitrack_get()
 {
 	: "gitrack_get($*)"
-	test -e ".gitrack/${1}" || die "invalid entry '${1}'"
+	test -e ".gitrack/${1}" || return 0
 	test -f ".gitrack/${1}" || die "not a file '${1}'"
-	cat ".gitrack/${1}"
+	printf '%s' "$(cat ".gitrack/${1}")"
 }
 
 gitrack_add()
@@ -274,11 +274,18 @@ gitrack_list()
 		;;
 	esac
 	for entry; do
-		ref="$(cat "${entry}/head")"
+		entry_type="$(gitrack_type "${entry#.gitrack/}")"
+		entry_ref="$(gitrack_ref "${entry#.gitrack/}")"
+		entry_head="$(gitrack_get "${entry_type}/${entry_ref}/head")"
+		entry_owner="$(gitrack_get "${entry_type}/${entry_ref}/owner")"
+		: "${entry_owner:=unassigned}"
+		entry_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
+		entry_status="$(gitrack_get "${entry_type}/${entry_ref}/status")"
 		# FIXME: <type>/<ref>: <state> <status> <owner> <summary>
-		echo "Entry: ${type}/${ref}"
-		cat "${entry}/refs/${ref}"
-		printf '\n'
+		printf '%s/%s: %6s:%-10s %10s  %s\n' \
+			"${entry_type}" "$(git rev-parse --short ${entry_ref})" \
+			"${entry_state}" "${entry_status}" "${entry_owner}" \
+			"$(sed -n 's/^Summary:[[:space:]]*//p' "${entry}/refs/${entry_head}")"
 	done | git_pager
 }
 gitrack_entry()
