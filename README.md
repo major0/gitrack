@@ -50,6 +50,38 @@ git-track commands:
 Report bugs to http://github.com/major0/gitrack
 ```
 
+## Getting Started
+
+To create your first track simply pick a `topic`, such as bug, issue, note,
+whatever you want to open the track under:
+
+```
+$ git track new headache -m 'An example track'
+[master a800eaf] New headache(1d59d42): An example track
+ 4 files changed, 11 insertions(+)
+ create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/head
+ create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/refs/1d59d4242a2bd039ee39365d718c946768e00a0b
+ create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/state
+ create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/status
+$
+```
+
+To list existing types of tracks invoke the `list` command:
+```
+$ git track list
+Types: headache
+$
+```
+
+Or specify a type to list tracked entries:
+```
+$ git track list headache
+headache/1d59d42:   open:new        unassigned  An example track
+$
+```
+
+Checkout `git track help <command>` for help on a specific command.
+
 ## License
 
 Like `git`, this project is licensed under the GPLv2 (not GPLv2.2, GPLv3, etc).
