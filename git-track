@@ -43,7 +43,7 @@ list_fmt()
 	done
 	while test "$#" -gt '0'; do
 		__list_len=$((${__list_len} + ${__list_fmt_max} + 2))
-		if test "${__list_len}" -gt '75'; then
+		if test "${__list_len}" -gt '78'; then
 			__list_len=0
 			printf '\n'
 		fi
@@ -201,8 +201,12 @@ gitrack_list()
 	if test "$#" -eq '0'; then
 		set -- $(ls -C1 -d .gitrack/*/ 2>/dev/null|sed -e 's,.gitrack,,;s,/,,g')
 		test "$#" -gt '0' || die 'No entries in tracker'
-		echo "Types:"
-		list_fmt "$@"
+		if test "$(echo "$*"|wc -c)" -lt 70; then
+			echo "Types: $*"
+		else
+			echo "Types:"
+			list_fmt "$@"
+		fi
 		exit 0
 	fi
 
