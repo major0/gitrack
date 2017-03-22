@@ -28,6 +28,28 @@ This code is very young (less than 20 commits at the time of this writing).
 The work is still in flux and many features are not yet complete and the
 tracker database format may or may not change.
 
+## Installation
+
+Simply copy `git-track` to a directory in your `PATH`.  From there you can use
+the tracker as a git sub-command.
+
+Example:
+
+```
+$ git track help commands
+git-track commands:
+  config               Modify the tracker config
+  list                 List existing tracks and track types
+  new                  Create a new track
+  update               Update/Modify an existing track
+  show                 Display the specified track
+  close                Close an existing track (wrapper to update)
+  reopen               Reopen a closed track (wrapper to update)
+  comment              Comment on an existing track
+
+Report bugs to http://github.com/major0/gitrack
+```
+
 ## License
 
 Like `git`, this project is licensed under the GPLv2 (not GPLv2.2, GPLv3, etc).
