@@ -56,13 +56,13 @@ To create your first track simply pick a `topic`, such as bug, issue, note,
 whatever you want to open the track under:
 
 ```
-$ git track new headache -m 'An example track'
-[master a800eaf] New headache(1d59d42): An example track
- 4 files changed, 11 insertions(+)
- create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/head
- create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/refs/1d59d4242a2bd039ee39365d718c946768e00a0b
- create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/state
- create mode 100644 .gitrack/headache/1d59d4242a2bd039ee39365d718c946768e00a0b/status
+$ git track new headache -m 'An example track' -m 'This line will end up in the body.' -m 'As will this one'
+[master 241fead] New headache(538fe22): An example track
+ 4 files changed, 13 insertions(+)
+ create mode 100644 .gitrack/headache/538fe22aeb4ce625453c28cbae8486903afb482b/head
+ create mode 100644 .gitrack/headache/538fe22aeb4ce625453c28cbae8486903afb482b/refs/538fe22aeb4ce625453c28cbae8486903afb482b
+ create mode 100644 .gitrack/headache/538fe22aeb4ce625453c28cbae8486903afb482b/state
+ create mode 100644 .gitrack/headache/538fe22aeb4ce625453c28cbae8486903afb482b/status
 $
 ```
 
@@ -76,11 +76,26 @@ $
 Or specify a type to list tracked entries:
 ```
 $ git track list headache
-headache/1d59d42:   open:new        unassigned  An example track
+headache/538fe22:   open:new        unassigned  An example track
 $
 ```
 
+An you can examine the specific track:
+```
+$ git track show headache/538fe22
+Entry: headache/538fe22aeb4ce625453c28cbae8486903afb482b
+State: open
+Status: new
+Owner: unassigned
+Summary: An example track
+
+This line will end up in the body.
+
+As will this one
+
 Checkout `git track help <command>` for help on a specific command.
+$
+```
 
 ## License
 
