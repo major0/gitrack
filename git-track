@@ -33,7 +33,29 @@ getarg()
 	esac
 	return 0
 }
-list_fmt()
+gitrack_rfc822_header()
+{
+	: "gitrack_rfc822_header($*)"
+	test "$#" -eq '2' || die "too few arguments to function: 'gitrack_rfc822($*)'"
+	test -f "${2}" || die "no such file '${2}'"
+	awk "
+	BEGIN{IGNORECASE=1;}
+	/^summary:[[:space:]]*/{
+		sub(\"^[^:]+:[[:space:]]+\",\"\")
+		print
+	}" < "${2}"
+}
+gitrack_rfc822_body()
+{
+	: "gitrack_rfc822_body($*)"
+	test "$#" -gt '0' || die "no file specified to function: 'gitrack_rfc922($*)'"
+	test -f "${1}" || die "no such file '${1}'"
+	awk 'BEGIN {body=0;}
+	/^$/{ body=1; }
+	{ if(body==1){ print; } }' < "${1}"
+
+}
+gitrack_fmt_list()
 {
 	__list_fmt_max=0
 	for arg; do
@@ -51,15 +73,15 @@ list_fmt()
 		printf '  %*s' "${__list_fmt_max}" "${1}"
 		shift
 	done
+	unset __list_fmt_max
+	unset __list_len
 	printf '\n'
 }
-edit_tmp()
+gitrack_mktemp()
 {
-	: "edit_tmp($*)"
-	__edit_tmpfile="$(mktemp /tmp/gitrack.XXXXXX)"
-	test -f "${__edit_tmpfile}" || return 1
-	set -- "${__edit_tmpfile}"
-	unset __edit_tmpfile
+	: "gitrack_mktemp($*)"
+	set -- "$(mktemp /tmp/gitrack.XXXXXX)"
+	test -f "${1}" || return 1
 cat >"${1}"<<EOF
 
 # Please enter a message for your entry. Lines starting with '#' will be
@@ -68,15 +90,17 @@ EOF
 
 	echo "${1}"
 }
-edit_summary()
+gitrack_msg_summary()
 {
-	: "edit_summary($*)"
+	: "gitrack_msg_summary($*)"
+	test "$#" -eq '1' || die "no file specified to function 'gitrack_msg_summary()'"
 	test -f "${1}" || die "no such file '${1}'"
 	head -n 1 "${1}" | sed -e 's/^[[:space:]]*//g;s/[[:space:]]*$//g'
 }
-edit_body()
+gitrack_msg_body()
 {
-	: "edit_body($*)"
+	: "gitrack_msg_body($*)"
+	test "$#" -eq '1' || die "no file specified to function 'gitrack_msg_body()'"
 	test -f "${1}" || die "no such file '${1}'"
 	set -- "${1}" $(wc -l "${1}" 2>/dev/null)
 
@@ -84,9 +108,10 @@ edit_body()
 	tail -n "$((${2} - 1))" "${1}" | \
 		sed -e :a -e 's/^[[:space:]]*//g;/./,$!d;/^\n*$/{$d;N;};/\n$/ba'
 }
-edit_msg()
+gitrack_edit()
 {
-	: "edit_msg($*)"
+	: "gitrack_edit($*)"
+	test "$#" -eq '1' || die "no file specified to function 'gitrack_edit()'"
 	test -f "${1}" || die "no such file '${1}'"
 	git_editor "${1}"
 	sed -i -e 's/^#.*//' "${1}"
@@ -96,7 +121,7 @@ edit_msg()
 		return 1
 	fi
 
-	if test -z "$(edit_summary "${1}")"; then
+	if test -z "$(gitrack_msg_summary "${1}")"; then
 		err 'empty summary line'
 		rm -f "${1}"
 		return 1
@@ -106,11 +131,13 @@ edit_msg()
 gitrack_type()
 {
 	: "gitrack_type($*)"
+	test "$#" -eq '1' || die "missing argument to function 'gitrack_type()'"
 	printf '%s\n' "${1%%/*}"
 }
 gitrack_ref()
 {
 	: "gitrack_ref($*)"
+	test "$#" -eq '1' || die "missing argument to function 'gitrack_ref()'"
 	test "${1}" != "${1##*/}" || return 0
 	set -- "$(echo ".gitrack/${1%%/}"*)"
 	test -e "${1}" || return 1
@@ -119,11 +146,13 @@ gitrack_ref()
 gitrack_exists()
 {
 	: "gitrack_exist($*)"
+	test "$#" -eq '1' || die "missing argument to function 'gitrack_exists()'"
 	gitrack_ref "${1}" > /dev/null || die "invalid track '${1}'"
 }
 gitrack_set()
 {
 	: "gitrack_set($*)"
+	test "$#" -eq '2' || die "too few arguments: git_track($*)"
 	test -d ".gitrack/${1%/*}" || die "cannot add '${1}'"
 	if test -e ".gitrack/${1}"; then
 		test -f ".gitrack/${1}" || die "not a file '${1}'"
@@ -141,6 +170,7 @@ gitrack_get()
 gitrack_add()
 {
 	: "gitrack_add($*)"
+	test "$#" -eq '2' || die "too few arguments: git_track($*)"
 	if ! test -d ".gitrack/${1%/*}"; then
 		mkdir -p ".gitrack/${1%/*}"
 		echo "${2}" > ".gitrack/${1}" || die "failed to add '${1}'"
@@ -152,141 +182,6 @@ gitrack_del()
 	if test -e ".gitrack/${1}"; then
 		git rm -f ".gitrack/${1}" || die "failed to delete '${1}'"
 	fi
-}
-
-##
-# tracker library interface
-gitrack_help()
-{
-	: "gitrack_help($*)"
-	case "${1}" in
-	commands)
-		echo 'git-track commands:'
-		printf '  %-20s %s\n' config	'Modify the tracker config'
-		printf '  %-20s %s\n' list	'List existing tracks and track types'
-		printf '  %-20s %s\n' new	'Create a new track'
-		printf '  %-20s %s\n' update	'Update/Modify an existing track'
-		printf '  %-20s %s\n' show	'Display the specified track'
-		printf '  %-20s %s\n' close	'Close an existing track (wrapper to update)'
-		printf '  %-20s %s\n' reopen	'Reopen a closed track (wrapper to update)'
-		printf '  %-20s %s\n' comment	'Comment on an existing track'
-		;;
-	config) echo 'usage: git-track config <options>'
-		echo "  This is a wrapper to 'git-config -f .gitrack/config ...'"
-		echo "  See: 'git help config' for <options> description."
-		;;
-
-	list)	printf 'usage: git-track list [<type>] [<options>]\n options:\n'
-		printf '  %-20s %s\n' '--open'			'List only open entries'
-		printf '  %-20s %s\n' '--closed'		'List only closed entries'
-		printf '  %-20s %s\n' '--status=<status>'	'List entries with a given status'
-		printf '  %-20s %s\n' '--tag=<tag>'		'List entries with a given tag'
-		;;
-
-	new)	# Always state=open, status=new
-		printf 'usage: git-track new <type> [<options>]\n options:\n'
-		printf '  %-20s %s\n' '--attach=<file>'		'ttach the specified file when opening the entry'
-		printf '  %-20s %s\n' '--tag=<tags>'		'Initial search tags of the entry'
-		;;
-
-	update)
-		printf 'usage: git-track update <type>/<ref> <options>\n options:\n'
-		printf '  %-20s %s\n' '--status=<status>'	'Change the status of an entry.'
-		printf '  %-20s %s\n' '--attach=<file>'		'Attach a file to an existing entry.'
-		printf '  %-20s %s\n' '--tag=<tags>'		'Tag the entry with the specified tags.'
-		;;
-
-
-	## Generally these are all wrappers to 'update'
-	reopen)	echo 'usage: git-track reopen <type>/<ref>'
-		;;
-	close)	echo 'usage: git-track close <type>/<ref> <status>'
-		;;
-	comment) echo 'usage: git-track comment <type>/<ref> [--attach=<file>]'
-		;;
-
-	*)		usage;;
-	esac
-
-	printf '\nReport bugs to http://github.com/major0/gitrack\n'
-	exit 0
-}
-gitrack_config() { git config -f '.gitrack/config' "$@"; }
-gitrack_init()
-{
-	: "gitrack_init($*)"
-	# init the tracker tree
-	mkdir '.gitrack'
-	gitrack_config --add webui.autoindex true
-	gitrack_config --add webui.indexfile BUGS.md
-
-	# allowed status types for open
-	gitrack_config --add status.open new,reopened,verified,assigned,fixed
-	gitrack_config --add status.close duplicate,wontfix,verified
-	# Severity is a bit of a special snowflake
-	#gitrack_config --add status.severity low,medium,high,critical
-
-	# Workflow for open entries
-	gitrack_config --add open.new open.verified,open.assigned,close.duplicate
-	gitrack_config --add open.verified open.assigned,close.duplicate,close.wontfix
-	gitrack_config --add open.assigned open.fixed,close.duplicate,close.wontfix
-	gitrack_config --add open.fixed close.verified
-
-	# Workflow for closed entries
-	gitrack_config --add close.verified open.reopen
-	gitrack_config --add close.wontfix open.reopen
-	gitrack_config --add close.duplicate open.reopen
-
-	git add '.gitrack' && git commit -m 'Initializing Gitrack distributed bug/issue/note tracker'
-	exit 0
-}
-gitrack_list()
-{
-	: "gitrack_list($*)"
-	## Parse our CLI options
-	# Random --help in the CLI
-	for arg; do case "${arg}" in (help|--help) gitrack_help list;;esac;done
-
-	# No options, list available types.
-	if test "$#" -eq '0'; then
-		set -- $(ls -C1 -d .gitrack/*/ 2>/dev/null|sed -e 's,.gitrack,,;s,/,,g')
-		test "$#" -gt '0' || die 'No entries in tracker'
-		if test "$(echo "$*"|wc -c)" -lt 70; then
-			echo "Types: $*"
-		else
-			echo "Types:"
-			list_fmt "$@"
-		fi
-		exit 0
-	fi
-
-	# List the head of every bug
-	test -d "$(echo ".gitrack/${1}"*)" || die "No '${1}' entries in the tracker"
-
-	case "${1}" in
-	*/*)	type="${1%%/*}"
-		set -- $(ls -C1 -d ".gitrack/${1}"*/ 2>/dev/null)
-		test "$#" -gt '0' || die "No such entry '${1}'"
-		;;
-	*)	type="${1}"
-		set -- $(ls -C1 -d ".gitrack/${1}"*/*/ 2>/dev/null)
-		test "$#" -gt '0' || die "No entries in the '${type}' tracker"
-		;;
-	esac
-	for entry; do
-		entry_type="$(gitrack_type "${entry#.gitrack/}")"
-		entry_ref="$(gitrack_ref "${entry#.gitrack/}")"
-		entry_head="$(gitrack_get "${entry_type}/${entry_ref}/head")"
-		entry_owner="$(gitrack_get "${entry_type}/${entry_ref}/owner")"
-		: "${entry_owner:=unassigned}"
-		entry_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
-		entry_status="$(gitrack_get "${entry_type}/${entry_ref}/status")"
-		# FIXME: <type>/<ref>: <state> <status> <owner> <summary>
-		printf '%s/%s: %6s:%-10s %10s  %s\n' \
-			"${entry_type}" "$(git rev-parse --short ${entry_ref})" \
-			"${entry_state}" "${entry_status}" "${entry_owner}" \
-			"$(sed -n 's/^Summary:[[:space:]]*//p' "${entry}/refs/${entry_head}")"
-	done | git_pager
 }
 gitrack_entry()
 {
@@ -307,7 +202,6 @@ gitrack_entry()
 			;;
 		(-m|--message|--message=*)
 			# Allow multiple message arguments
-			# FIXME this might be better handled higher up.
 			if test -z "${entry_summary}"; then
 				entry_summary="$(getarg "$@")" || die "option error '${1}'"
 				entry_body=''
@@ -323,11 +217,11 @@ gitrack_entry()
 			entry_status="$(getarg "$@")" || die "option error '${1}'"
 			;;
 		(-a|--attach|--attach=*)
-			entry_attach="$(getarg "$@")" || gitrack_help new
+			entry_attach="$(getarg "$@")" || gitrack_cmd_help new
 			test -f "${attach}" || die "no such file '${attach}'"
 			;;
 		(-t|--tag|--tag=*)
-			entry_tags="$(getarg "$@")" || gitrack_help new
+			entry_tags="$(getarg "$@")" || gitrack_cmd_help new
 			entry_tags="$(printf '%s' "${entry_tags}"|sed -e 's/,/ /g')"
 			;;
 		(-*)	die "unknown argument '${1}'";;
@@ -345,7 +239,7 @@ gitrack_entry()
 
 	##
 	# Prompt the user for a message
-	ENTRY_FILE="$(edit_tmp)" || die 'failed to make temp file'
+	ENTRY_FILE="$(gitrack_mktemp)" || die 'failed to make temp file'
 	if test -z "${entry_summary}"; then
 		test -z "${entry_summary}" || printf '%s\n' "${entry_summary}" >> "${ENTRY_FILE}"
 		test -z "${entry_body}" || printf '\n%s\n' "${entry_body}" >> "${ENTRY_FILE}"
@@ -353,9 +247,9 @@ gitrack_entry()
 		test -z "${entry_status}" || printf '# %20s: %s\n' status "$(tolower ${entry_status})" >> "${ENTRY_FILE}"
 		test -z "${entry_attach}" || printf '# %20s: %s\n' attachment "$(tolower ${entry_attach})" >> "${ENTRY_FILE}"
 		test -z "${entry_tags}" || printf '# %20s: %s\n' tags "$(tolower ${entry_tags})" >> "${ENTRY_FILE}"
-		edit_msg "${ENTRY_FILE}" || exit 1
-		entry_summary="$(edit_summary "${ENTRY_FILE}")"
-		entry_body="$(edit_body "${ENTRY_FILE}")"
+		gitrack_edit "${ENTRY_FILE}" || exit 1
+		entry_summary="$(gitrack_msg_summary "${ENTRY_FILE}")"
+		entry_body="$(gitrack_msg_body "${ENTRY_FILE}")"
 	fi
 
 	##
@@ -418,13 +312,227 @@ gitrack_entry()
 	fi
 	git commit -m "${entry_action} ${entry_type}($(git rev-parse --short ${entry_ref})): ${entry_summary}" -m "${entry_body}"
 }
-gitrack_new()
+
+##
+# tracker command interaces
+gitrack_cmd_config() { git config -f '.gitrack/config' "$@"; }
+gitrack_cmd_help()
 {
-	: "gitrack_new($*)"
+	: "gitrack_cmd_help($*)"
+	case "${1}" in
+	commands)
+		echo 'git-track commands:'
+		printf '  %-20s %s\n' config	'Modify the tracker config'
+		printf '  %-20s %s\n' list	'List existing tracks and track types'
+		printf '  %-20s %s\n' new	'Create a new track'
+		printf '  %-20s %s\n' update	'Update/Modify an existing track'
+		printf '  %-20s %s\n' show	'Display the specified track'
+		printf '  %-20s %s\n' close	'Close an existing track'
+		printf '  %-20s %s\n' reopen	'Reopen a closed track'
+		printf '  %-20s %s\n' comment	'Comment on an existing track'
+		;;
+	config) echo 'usage: git-track config <options>'
+		echo "  This is a wrapper to 'git-config -f .gitrack/config ...'"
+		echo "  See: 'git help config' for <options> description."
+		;;
+
+	list)	printf 'usage: git-track list [<type>] [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--open'			'List only open entries'
+		printf '  %-20s %s\n' '--closed'		'List only closed entries'
+		printf '  %-20s %s\n' '--status=<status>'	'List entries with a given status'
+		printf '  %-20s %s\n' '--tag=<tag>'		'List entries with a given tag'
+		;;
+
+	new)	# Always state=open, status=new
+		printf 'usage: git-track new <type> [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--message=<message>'	'Use the specified message'
+		#printf '  %-20s %s\n' '--attach=<file>'	'Attach the specified file when opening the entry'
+		printf '  %-20s %s\n' '--tag=<tags>'		'Initial search tags of the entry'
+		;;
+
+	update)
+		printf 'usage: git-track update <type>/<ref> <options>\n options:\n'
+		printf '  %-20s %s\n' '--message=<message>'	'Use the specified message'
+		printf '  %-20s %s\n' '--status=<status>'	'Change the status of an entry.'
+		#printf '  %-20s %s\n' '--attach=<file>'	'Attach a file to an existing entry.'
+		printf '  %-20s %s\n' '--tag=<tags>'		'Tag the entry with the specified tags.'
+		;;
+	reopen)	printf 'usage: git-track reopen <type>/<ref> [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--message=<message>'	'Use the specified message'
+		#printf '  %-20s %s\n' '--attach=<file>'	'Attach a file when reopening the entry.'
+		;;
+	close)	printf 'usage: git-track close <type>/<ref> <status> [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--message=<message>'	'Use the specified message'
+		;;
+	comment) printf 'usage: git-track comment <type>/<ref> [<options>]\n options:\n'
+		printf '  %-20s %s\n' '--message=<message>'	'Use the specified message'
+		#printf '  %-20s %s\n' '--attach=<file>'	'Attach a file to an existing entry.'
+		;;
+
+	*)	usage;;
+	esac
+
+	printf '\nReport bugs to http://github.com/major0/gitrack\n'
+	exit 0
+}
+gitrack_cmd_init()
+{
+	: "gitrack_cmd_init($*)"
+	# init the tracker tree
+	mkdir '.gitrack'
+	gitrack_config --add webui.autoindex true
+	gitrack_config --add webui.indexfile BUGS.md
+
+	# allowed status types for open
+	gitrack_config --add status.open new,reopened,verified,assigned,fixed
+	gitrack_config --add status.close duplicate,wontfix,verified
+	# Severity is a bit of a special snowflake
+	#gitrack_config --add status.severity low,medium,high,critical
+
+	# Workflow for open entries
+	gitrack_config --add open.new open.verified,open.assigned,close.duplicate
+	gitrack_config --add open.verified open.assigned,close.duplicate,close.wontfix
+	gitrack_config --add open.assigned open.fixed,close.duplicate,close.wontfix
+	gitrack_config --add open.fixed close.verified
+
+	# Workflow for closed entries
+	gitrack_config --add close.verified open.reopen
+	gitrack_config --add close.wontfix open.reopen
+	gitrack_config --add close.duplicate open.reopen
+
+	git add '.gitrack' && git commit -m 'Initializing Gitrack distributed bug/issue/note tracker'
+	exit 0
+}
+gitrack_cmd_list()
+{
+	: "gitrack_cmd_list($*)"
+	## Parse our CLI options
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help list;;esac;done
+
+	# No options, list available types.
+	if test "$#" -eq '0'; then
+		set -- $(ls -C1 -d .gitrack/*/ 2>/dev/null|sed -e 's,.gitrack,,;s,/,,g')
+		test "$#" -gt '0' || die 'No entries in tracker'
+		if test "$(echo "$*"|wc -c)" -lt 70; then
+			echo "Types: $*"
+		else
+			echo "Types:"
+			gitrack_fmt_list "$@"
+		fi
+		exit 0
+	fi
+
+	# List the head of every bug
+	test -d "$(echo ".gitrack/${1}"*)" || die "No '${1}' entries in the tracker"
+
+	case "${1}" in
+	*/*)	type="${1%%/*}"
+		set -- $(ls -C1 -d ".gitrack/${1}"*/ 2>/dev/null)
+		test "$#" -gt '0' || die "No such entry '${1}'"
+		;;
+	*)	type="${1}"
+		set -- $(ls -C1 -d ".gitrack/${1}"*/*/ 2>/dev/null)
+		test "$#" -gt '0' || die "No entries in the '${type}' tracker"
+		;;
+	esac
+	for entry; do
+		entry_type="$(gitrack_type "${entry#.gitrack/}")"
+		entry_ref="$(gitrack_ref "${entry#.gitrack/}")"
+		entry_head="$(gitrack_get "${entry_type}/${entry_ref}/head")"
+		entry_owner="$(gitrack_get "${entry_type}/${entry_ref}/owner")"
+		: "${entry_owner:=unassigned}"
+		entry_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
+		entry_status="$(gitrack_get "${entry_type}/${entry_ref}/status")"
+		printf '%s/%s: %6s:%-10s %10s  %s\n' \
+			"${entry_type}" "$(git rev-parse --short ${entry_ref})" \
+			"${entry_state}" "${entry_status}" "${entry_owner}" \
+			"$(gitrack_rfc822_header summary "${entry}/${refs}/refs/${entry_head}")"
+	done | git_pager
+}
+gitrack_cmd_show()
+{
+	: "gitrack_cmd_show($*)"
+	## parse our CLI options
+	test "$#" -gt '0' || die 'no track specified'
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help show;;esac;done
+	# Filter out valid arguments
+	for arg; do
+		case "${arg}" in
+		(-*) die "invalid option '${arg}'";;
+		esac
+	done
+	# sanity checks
+	gitrack_exists "${1}"
+	entry_type="$(gitrack_type "${1}")"
+	entry_ref="$(gitrack_ref "${1}")"
+	entry_head="$(gitrack_get "${entry_type}/${entry_ref}/head")"
+	printf 'Entry: %s/%s\n' "${entry_type}" "${entry_ref}"
+	printf 'State: %s\n' "$(gitrack_get "${entry_type}/${entry_ref}/state")"
+	printf 'Status: %s\n' "$(gitrack_get "${entry_type}/${entry_ref}/status")"
+	entry_owner="$(gitrack_get "${entry_type}/${entry_ref}/owner")"
+	: "${entry_owner:=unassigned}"
+	printf 'Owner: %s\n' "${entry_owner}"
+	printf 'Summary: %s\n' "$(gitrack_rfc822_header summary ".gitrack/${entry_type}/${entry_ref}/refs/${entry_head}")"
+
+	# Tags
+	shift $#
+	for tag in ".gitrack/${entry_type}/${entry_ref}/tags/"*; do
+		test -e "${tag}" || continue
+		set -- "${@}" "${tag##*/}"
+	done
+	if test "$#" -gt '0'; then
+		if test "$(echo "$*"|wc -c)" -lt 70; then
+			echo "Tags: $*"
+		else
+			echo "Tags:"
+			gitrack_fmt_list "$@"
+		fi
+	fi
+	unset tag
+
+	# Blocks
+	shift $#
+	for block in ".gitrack/${entry_type}/${entry_ref}/blocks/"*; do
+		test -e "${block}" || continue
+		set -- "${@}" "$(cat "${depend}")"
+	done
+	if test "$#" -gt '0'; then
+		if test "$(echo "$*"|wc -c)" -lt 70; then
+			echo "Blocks: $*"
+		else
+			echo "Blocks:"
+			gitrack_fmt_list "$@"
+		fi
+	fi
+	unset block
+
+	# Depends
+	shift $#
+	for depend in ".gitrack/${entry_type}/${entry_ref}/depends/"*; do
+		test -e "${depend}" || continue
+		set -- "${@}" "$(cat "${depend}")"
+	done
+	if test "$#" -gt '0'; then
+		if test "$(echo "$*"|wc -c)" -lt 70; then
+			echo "Depends: $*"
+		else
+			echo "Depends:"
+			gitrack_fmt_list "$@"
+		fi
+	fi
+	unset depend
+
+	gitrack_rfc822_body ".gitrack/${entry_type}/${entry_ref}/refs/${entry_head}"
+}
+gitrack_cmd_new()
+{
+	: "gitrack_cmd_new($*)"
 	## Parse our CLI options
 	test "$#" -gt '0' || die 'no entry type specified'
 	# Random --help in the CLI
-	for arg; do case "${arg}" in (help|--help) gitrack_help new;;esac;done
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help new;;esac;done
 	# Filter out valid arguments
 	for arg; do
 		case "${arg}" in
@@ -441,13 +549,13 @@ gitrack_new()
 	# Collect the message frum the user
 	gitrack_entry --state='open' --status='new' --type="${entry_type}" "${@}"
 }
-gitrack_close()
+gitrack_cmd_close()
 {
-	: "gitrack_close($*)"
+	: "gitrack_cmd_close($*)"
 	## parse our CLI options
-	test "$#" -gt '0' || die 'no entry type specified'
+	test "$#" -gt '0' || die 'no track specified'
 	# Random --help in the CLI
-	for arg; do case "${arg}" in (help|--help) gitrack_help close;;esac;done
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help close;;esac;done
 	# Filter out valid arguments
 	for arg; do
 		case "${arg}" in
@@ -459,6 +567,7 @@ gitrack_close()
 	gitrack_exists "${1}"
 	entry_type="$(gitrack_type "${1}")"
 	entry_ref="$(gitrack_ref "${1}")"
+	shift
 	entry_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
 	test "${entry_state}" = 'open' || die "already closed '${entry_type}/${entry_ref}'"
 	entry_status="${2}"
@@ -466,18 +575,37 @@ gitrack_close()
 	# close track
 	gitrack_entry --type="${entry_type}" --ref="${entry_ref}" --state='closed' --status="${entry_status}" "${@}"
 }
-gitrack_update()
+gitrack_cmd_reopen()
 {
-	: "gitrack_update($*)"
-	## Parse our CLI options
-	test "$#" -gt '0' || die 'no entry type specified'
+	: "gitrack_cmd_reopen($*)"
+	## parse our CLI options
+	test "$#" -gt '0' || die 'no track specified'
 	# Random --help in the CLI
-	for arg; do case "${arg}" in (help|--help) gitrack_help update;;esac;done
-	# Grab our type
-	case "${1}" in (-*) die "invalid type '${1}'";; esac
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help reopen;;esac;done
+	# Filter out valid arguments
+	for arg; do
+		case "${arg}" in
+		(-m|--message|--message=*);;
+		(-*) die "invalid option '${arg}'";;
+		esac
+	done
+	# sanity checks
+	gitrack_exists "${1}"
 	entry_type="$(gitrack_type "${1}")"
 	entry_ref="$(gitrack_ref "${1}")"
 	shift
+	entry_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
+	test "${entry_state}" = 'close' || die "already opened '${entry_type}/${entry_ref}'"
+	# close track
+	gitrack_entry --type="${entry_type}" --ref="${entry_ref}" --state='open' --status='reopen' "${@}"
+}
+gitrack_cmd_update()
+{
+	: "gitrack_cmd_update($*)"
+	## Parse our CLI options
+	test "$#" -gt '0' || die 'no track specified'
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help update;;esac;done
 	# Filter out valid arguments
 	for arg; do
 		case "${arg}" in
@@ -492,31 +620,55 @@ gitrack_update()
 	gitrack_exists "${1}"
 	entry_type="$(gitrack_type "${1}")"
 	entry_ref="$(gitrack_ref "${1}")"
+	shift
 	# update track
 	gitrack_entry --type="${entry_type}" --entry_ref="${entry_ref}" "${@}"
 }
+gitrack_cmd_comment()
+{
+	: "gitrack_cmd_comment($*)"
+	## Parse our CLI options
+	test "$#" -gt '0' || die 'no track specified'
+	# Random --help in the CLI
+	for arg; do case "${arg}" in (help|--help) gitrack_cmd_help comment;;esac;done
+	# Filter out valid arguments
+	for arg; do
+		case "${arg}" in
+		#(--attach|--attach=*);;
+		(-m|--message|--message=*);;
+		(-*) die "invalid option '${arg}'";;
+		esac
+	done
+	# sanity checks
+	gitrack_exists "${1}"
+	entry_type="$(gitrack_type "${1}")"
+	entry_ref="$(gitrack_ref "${1}")"
+	shift
+	# update track
+	gitrack_entry --type="${entry_type}" --entry_ref="${entry_ref}" "${@}"
+}
+
 ##
 # CLI argument handling
 cmd="${1}"
 shift
 case "${cmd}" in
--h|--help|help)	gitrack_help "$@";;
---init)		gitrack_init "$@";;
+-h|--help|help)	gitrack_cmd_help "$@";;
+--init)		gitrack_cmd_init "$@";;
 -*)		die "unknown option '${cmd}'";;
 *)		;;
 esac
 
-if ! test -d '.gitrack'; then
-	die "tracker database needs to be initialized with 'git track --init'"
-fi
+test -d '.gitrack' || die "tracker database needs to be initialized with 'git track --init'"
 
 case "${cmd}" in
-config)		gitrack_config "$@";;
-new|open)	gitrack_new "$@";;
-close)		gitrack_close "$@";;
-reopen)		gitrack_reopen "$@";;
-comment)	gitrack_comment "$@";;
-reply)		gitrack_reply "$@";;
-list|ls)	gitrack_list "$@";;
+config)		gitrack_cmd_config "$@";;
+show)		gitrack_cmd_show "$@";;
+list|ls)	gitrack_cmd_list "$@";;
+new|open)	gitrack_cmd_new "$@";;
+close)		gitrack_cmd_close "$@";;
+reopen)		gitrack_cmd_reopen "$@";;
+comment)	gitrack_cmd_comment "$@";;
+update)		gitrack_cmd_update "$@";;
 *)		die "unknown operation '${cmd}'";;
 esac
