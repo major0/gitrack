@@ -33,6 +33,21 @@ getarg()
 	esac
 	return 0
 }
+
+gitrack_mkdir()
+{
+	: "gitrack_mkdir($*)"
+	test "$#" -gt '0' || die "no path specified to function 'gitrack_mkdir()'"
+	test -d ".gitrack/${1}" || mkdir -p ".gitrack/${1}"
+}
+gitrack_link()
+{
+	: "gitrack_link($*)"
+	test "$#" -gt '0' || die "no link target specified to fucntion 'gitrack_link()'"
+	test "$#" -gt '1' || die "no link name specified to fucntion 'gitrack_link()'"
+	gitrack_mkdir "${2%/*}" || die "mkdir failed for link '${1}'"
+	gitrack_link "../../../${1}" "${2}" || die "link failed for '${1}'"
+}
 gitrack_rfc822_header()
 {
 	: "gitrack_rfc822_header($*)"
@@ -171,10 +186,9 @@ gitrack_add()
 {
 	: "gitrack_add($*)"
 	test "$#" -eq '2' || die "too few arguments: git_track($*)"
-	if ! test -d ".gitrack/${1%/*}"; then
-		mkdir -p ".gitrack/${1%/*}"
-		echo "${2}" > ".gitrack/${1}" || die "failed to add '${1}'"
-	fi
+	! test -f ".gitrack/${1}" || return 0
+	gitrack_mkdir "${1%/*}"
+	echo "${2}" > ".gitrack/${1}" || die "failed to add '${1}'"
 }
 gitrack_del()
 {
@@ -213,6 +227,18 @@ gitrack_entry()
 				unset entry_body_append
 			fi
 			;;
+		(-r|--related|--related=*)
+			entry_related="$(getarg "$@")" || die "option error '${1}'"
+			entry_related="$(printf '%s' "${entry_depends}"|sed -e 's/,/ /g')"
+			;;
+		(-d|--depends|--depends=*)
+			entry_depends="$(getarg "$@")" || die "option error '${1}'"
+			entry_depends="$(printf '%s' "${entry_depends}"|sed -e 's/,/ /g')"
+			;;
+		(-b|--blocks|--blocks=*)
+			entry_blocks="$(getarg "$@")" || die "option error '${1}'"
+			entry_blocks="$(printf '%s' "${entry_blocks}"|sed -e 's/,/ /g')"
+			;;
 		(-s|--status|--status=*)
 			entry_status="$(getarg "$@")" || die "option error '${1}'"
 			;;
@@ -236,6 +262,15 @@ gitrack_entry()
 		test "${entry_state}" = 'open' || die 'new entries must be in an open state'
 		test "${entry_status}" = 'new' || die 'new entries must have an new status'
 	fi
+	for entry in ${entry_related}; do
+		gitrack_exists "${entry}" || die "invalid related '${entry}'"
+	done
+	for entry in ${entry_depends}; do
+		gitrack_exists "${entry}" || die "invalid dependancy '${entry}'"
+	done
+	for entry in ${entry_blocks}; do
+		gitrack_exists "${entry}" || die "invalid blocker '${entry}'"
+	done
 
 	##
 	# Prompt the user for a message
@@ -247,6 +282,9 @@ gitrack_entry()
 		test -z "${entry_status}" || printf '# %20s: %s\n' status "$(tolower ${entry_status})" >> "${ENTRY_FILE}"
 		test -z "${entry_attach}" || printf '# %20s: %s\n' attachment "$(tolower ${entry_attach})" >> "${ENTRY_FILE}"
 		test -z "${entry_tags}" || printf '# %20s: %s\n' tags "$(tolower ${entry_tags})" >> "${ENTRY_FILE}"
+		test -z "${entry_related}" || printf '# %20s: %s\n' related "$(tolower ${entry_related})" >> "${ENTRY_FILE}"
+		test -z "${entry_depends}" || printf '# %20s: %s\n' depends "$(tolower ${entry_depends})" >> "${ENTRY_FILE}"
+		test -z "${entry_blocks}" || printf '# %20s: %s\n' blocks "$(tolower ${entry_blocks})" >> "${ENTRY_FILE}"
 		gitrack_edit "${ENTRY_FILE}" || exit 1
 		entry_summary="$(gitrack_msg_summary "${ENTRY_FILE}")"
 		entry_body="$(gitrack_msg_body "${ENTRY_FILE}")"
@@ -262,6 +300,9 @@ gitrack_entry()
 	test -z "${entry_status}" || printf 'X-Status: %s\n' "${entry_status}" >> "${ENTRY_FILE}"
 	test -z "${entry_tags}" || printf 'X-Tags: %s\n' "${entry_tags}" >> "${ENTRY_FILE}"
 	test -z "${entry_attach}" || printf 'X-Attach: %s\n' "${entry_attach}" >> "${ENTRY_FILE}"
+	test -z "${entry_related}" || printf 'X-Related: %s\n' "${entry_related}" >> "${ENTRY_FILE}"
+	test -z "${entry_depends}" || printf 'X-Depends: %s\n' "${entry_depends}" >> "${ENTRY_FILE}"
+	test -z "${entry_blocks}" || printf 'X-Blocks: %s\n' "${entry_blocks}" >> "${ENTRY_FILE}"
 	printf 'Summary: %s\n\n%s\n' "${entry_summary}" "${entry_body}" >> "${ENTRY_FILE}"
 	# FIXME add support for GPG signing the entry?
 
@@ -273,7 +314,7 @@ gitrack_entry()
 	# new track?
 	if test -z "${entry_ref}"; then
 		entry_ref="${entry_hash}"
-		mkdir -p ".gitrack/${entry_type}/${entry_ref}/refs" || die "failed to add entry '${entry_ref}'"
+		gitrack_mkdir "${entry_type}/entry_ref}/refs" || die "failed to add entry '${entry_ref}'"
 		gitrack_set "${entry_type}/${entry_ref}/head" "${entry_ref}"
 	else	# existing track
 		previous_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
@@ -288,12 +329,30 @@ gitrack_entry()
 	test -z "${entry_status}" || gitrack_set "${entry_type}/${entry_ref}/status" "${entry_status}"
 	test -z "${entry_owner}" || gitrack_set "${entry_type}/${entry_ref}/owner" "${entry_owner}"
 
-	for entry_tag in ${entry_tags}; do
-		test -d ".gitrack/${entry_type}/${entry_ref}/tags" || mkdir -p ".gitrack/${entry_type}/${entry_ref}/tags"
-		case "${entry_tag}" in
-		(-*)	gitrack_del "${entry_type}/${entry_ref}/tags/${entry_tag}";;
-		(*)	gitrack_add "${entry_type}/${entry_ref}/tags/${entry_tag}" "${entry_hash}";;
+	for entry in ${entry_tags}; do
+		gitrack_mkdir "${entry_type}/${entry_ref}/tags"
+		case "${entry}" in
+		(-*)	gitrack_del "${entry_type}/${entry_ref}/tags/${entry}";;
+		(*)	gitrack_add "${entry_type}/${entry_ref}/tags/${entry}" "${entry_hash}";;
 		esac
+	done
+
+	# FIXME support remove related
+	for entry in ${entry_related}; do
+		gitrack_link "${entry}" "${entry_type}/${entry_ref}/related/$(gitrack_ref "${entry}")"
+		gitrack_link "${entry_type}/${entry_ref}" "${entry}/related/${entry_ref}"
+	done
+
+	# FIXME support remove depends
+	for entry in ${entry_depends}; do
+		gitrack_link "${entry}" "${entry_type}/${entry_ref}/depends/$(gitrack_ref "${entry}")"
+		gitrack_link "${entry_type}/${entry_ref}" "${entry}/blocks/${entry_ref}"
+	done
+
+	# FIXME support remove blockers
+	for entry in ${entry_blocks}; do
+		gitrack_link "${entry}" "${entry_type}/${entry_ref}/blocks/$(gitrack_ref "${entry}")"
+		gitrack_link "${entry_type}/${entry_ref}" "${entry}/depends/${entry_ref}"
 	done
 
 	##
@@ -424,8 +483,6 @@ gitrack_cmd_list()
 	fi
 
 	# List the head of every bug
-	test -d "$(echo ".gitrack/${1}"*)" || die "No '${1}' entries in the tracker"
-
 	case "${1}" in
 	*/*)	type="${1%%/*}"
 		set -- $(ls -C1 -d ".gitrack/${1}"*/ 2>/dev/null)
@@ -538,6 +595,9 @@ gitrack_cmd_new()
 		case "${arg}" in
 		#(--attach|--attach=*);;
 		(-m|--message|--message=*);;
+		(-r|--related|--related=*);;
+		(-d|--depends|--depends=*);;
+		(-b|--blocks|--blocks=*);;
 		(-t|--tag|--tag=*);;
 		(-*) die "invalid option '${arg}'";;
 		esac
@@ -586,6 +646,9 @@ gitrack_cmd_reopen()
 	for arg; do
 		case "${arg}" in
 		(-m|--message|--message=*);;
+		(-r|--related|--related=*);;
+		(-d|--depends|--depends=*);;
+		(-b|--blocks|--blocks=*);;
 		(-*) die "invalid option '${arg}'";;
 		esac
 	done
@@ -612,6 +675,9 @@ gitrack_cmd_update()
 		#(--attach|--attach=*);;
 		(-s|--status|--status=*);;
 		(-m|--message|--message=*);;
+		(-r|--related|--related=*);;
+		(-d|--depends|--depends=*);;
+		(-b|--blocks|--blocks=*);;
 		(-t|--tag|--tag=*);;
 		(-*) die "invalid option '${arg}'";;
 		esac
