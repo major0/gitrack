@@ -314,7 +314,7 @@ gitrack_entry()
 	# new track?
 	if test -z "${entry_ref}"; then
 		entry_ref="${entry_hash}"
-		gitrack_mkdir "${entry_type}/entry_ref}/refs" || die "failed to add entry '${entry_ref}'"
+		gitrack_mkdir "${entry_type}/${entry_ref}/refs" || die "failed to add entry '${entry_ref}'"
 		gitrack_set "${entry_type}/${entry_ref}/head" "${entry_ref}"
 	else	# existing track
 		previous_state="$(gitrack_get "${entry_type}/${entry_ref}/state")"
