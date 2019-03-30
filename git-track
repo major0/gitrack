@@ -716,6 +716,7 @@ gitrack_cmd_comment()
 
 ##
 # CLI argument handling
+test "$#" -gt '0' || gitrack_cmd_help
 cmd="${1}"
 shift
 case "${cmd}" in
