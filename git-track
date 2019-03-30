@@ -416,6 +416,10 @@ gitrack_cmd_help()
 		#printf '  %-20s %s\n' '--attach=<file>'	'Attach a file to an existing entry.'
 		printf '  %-20s %s\n' '--tag=<tags>'		'Tag the entry with the specified tags.'
 		;;
+
+	show)	echo 'usage: git-track show <type>/<ref>'
+		;;
+
 	reopen)	printf 'usage: git-track reopen <type>/<ref> [<options>]\n options:\n'
 		printf '  %-20s %s\n' '--message=<message>'	'Use the specified message'
 		#printf '  %-20s %s\n' '--attach=<file>'	'Attach a file when reopening the entry.'
