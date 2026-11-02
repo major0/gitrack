@@ -23,11 +23,14 @@ type Report struct {
 	Missing  []string // index entries that should exist but do not
 	Extra    []string // index entries that exist but should not
 	Dangling []string // forward links pointing at nonexistent tracks
+	Warnings []string // guardrail divergences (ADR-0026): advisory, not auto-fixed
 }
 
-// Clean reports whether the cache matches the authoritative data.
+// Clean reports whether the cache matches the authoritative data AND no
+// guardrail warnings were found.
 func (r Report) Clean() bool {
-	return len(r.Missing) == 0 && len(r.Extra) == 0 && len(r.Dangling) == 0
+	return len(r.Missing) == 0 && len(r.Extra) == 0 &&
+		len(r.Dangling) == 0 && len(r.Warnings) == 0
 }
 
 // cacheRoot returns the absolute cache directory for a repo.
@@ -56,6 +59,9 @@ func desired(repo *core.Repo) (map[string]bool, []string, error) {
 		}
 		if t.State != "" {
 			want[filepath.Join("state", t.State, id)] = true
+		}
+		if t.Status != "" {
+			want[filepath.Join("status", t.Status, id)] = true
 		}
 		if t.Kind != "" {
 			want[filepath.Join("type", t.Kind, id)] = true
@@ -127,7 +133,59 @@ func Verify(repo *core.Repo) (Report, error) {
 	}
 	sort.Strings(rep.Missing)
 	sort.Strings(rep.Extra)
+	warn, err := guardrailWarnings(repo)
+	if err != nil {
+		return Report{}, err
+	}
+	rep.Warnings = warn
 	return rep, nil
+}
+
+// guardrailWarnings reports where authoritative track data diverges from the
+// declared config guardrails (ADR-0026). These are advisory: the data is valid
+// and never rewritten; fsck surfaces the divergence for a human to resolve.
+func guardrailWarnings(repo *core.Repo) ([]string, error) {
+	ids, err := repo.ListIDs()
+	if err != nil {
+		return nil, err
+	}
+	statuses, err := repo.Statuses()
+	if err != nil {
+		return nil, err
+	}
+	statusOK := make(map[string]bool, len(statuses))
+	for _, s := range statuses {
+		statusOK[s] = true
+	}
+	// config/kinds is an optional allow-list; empty means "any kind allowed".
+	kinds, err := repo.Kinds()
+	if err != nil {
+		return nil, err
+	}
+	kindOK := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		kindOK[k] = true
+	}
+
+	var warn []string
+	for _, id := range ids {
+		t, err := repo.Load(id)
+		if err != nil {
+			return nil, err
+		}
+		short := id[:8]
+		if t.State != core.StateOpen && t.State != core.StateClosed {
+			warn = append(warn, fmt.Sprintf("%s: state %q is not open/closed", short, t.State))
+		}
+		if t.Status != "" && !statusOK[t.Status] {
+			warn = append(warn, fmt.Sprintf("%s: status %q is not a defined status", short, t.Status))
+		}
+		if len(kindOK) > 0 && t.Kind != "" && !kindOK[t.Kind] {
+			warn = append(warn, fmt.Sprintf("%s: kind %q is not in config/kinds", short, t.Kind))
+		}
+	}
+	sort.Strings(warn)
+	return warn, nil
 }
 
 // Rebuild regenerates the cache from scratch: it removes the existing cache tree
@@ -153,5 +211,11 @@ func Rebuild(repo *core.Repo) (Report, error) {
 			return Report{}, fmt.Errorf("writing cache entry: %w", err)
 		}
 	}
-	return Report{Dangling: dangling}, nil
+	// A rebuild fixes the cache, but guardrail divergences are authored-data
+	// facts (ADR-0026) a rebuild must NOT silently fix — report them.
+	warn, err := guardrailWarnings(repo)
+	if err != nil {
+		return Report{}, err
+	}
+	return Report{Dangling: dangling, Warnings: warn}, nil
 }

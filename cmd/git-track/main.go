@@ -1,15 +1,19 @@
 // Command git-track is the gitrack CLI, installed on PATH so that git's native
-// subcommand dispatch runs it as "git track" (ADR-0015/0016). This is the first
-// vertical slice: init, new, show, list, fsck.
+// subcommand dispatch runs it as "git track" (ADR-0015/0016). Commands:
+// init, create, update, get, set, show, list, search, close, reopen, fsck.
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/major0/gitrack/internal/cache"
 	"github.com/major0/gitrack/internal/core"
+	"github.com/major0/gitrack/internal/server"
 )
 
 const usage = `git-track - distributed tracker whose state merges with your code
@@ -17,12 +21,26 @@ const usage = `git-track - distributed tracker whose state merges with your code
 usage: git track <command> [args]
 
 commands:
-  init                 initialize a tracker in the current repository
-  new [-k kind] <title>  create a track, print its id
-  show <ref>           display a track (ref: id, short id, or slug)
-  list [-s state] [-k kind]  list tracks
-  fsck [--write]       verify (or rebuild) the derived cache
+  init                        initialize a tracker in the current repository
+  config status ...           edit status workflows (see 'config status')
+  create [-k kind] <title>    create a track, print its id
+  update <ref> [flags]        change a track's title/status/kind/description
+  get [--json] <ref>[.path]   read a field/list/object (e.g. <ref>.comments.<id>)
+  set <ref>.<key> <value>     write a free-form field (not state/status)
+  show <ref>                  display a track (ref: id, short id, or slug)
+  list [--state s][-s status][-k kind]  list tracks
+  search <query>              find tracks by text in title/description/slug
+  close <ref> [--status=s]    close a track: state=closed, status=s (default done)
+  reopen <ref>                reopen a track: state=open, status=reopened
+  serve [--addr 127.0.0.1:0]  live loopback preview server (random port)
+  fsck [--write]              verify (or rebuild) the derived cache
 
+Every command is a verb. A track has two axes (ADR-0019): a fixed state
+(open|closed) changed only by create/close/reopen, and a customizable status
+workflow (built-ins new/reopened/done plus user-defined statuses in
+config/statuses/) moved by 'update -s'.
+
+update flags: -t title | -s status | -k kind | -d description
 See docs/FORMAT.md for the on-disk format.`
 
 func main() {
@@ -41,17 +59,42 @@ func run(args []string) error {
 	switch cmd {
 	case "init":
 		return cmdInit()
-	case "new":
-		return cmdNew(rest)
+	case "config":
+		return cmdConfig(rest)
+	case "create":
+		return cmdCreate(rest)
+	case "update":
+		return cmdUpdate(rest)
+	case "get":
+		return cmdGet(rest)
+	case "set":
+		return cmdSet(rest)
 	case "show":
 		return cmdShow(rest)
 	case "list", "ls":
 		return cmdList(rest)
+	case "search":
+		return cmdSearch(rest)
+	case "close":
+		return cmdClose(rest)
+	case "reopen":
+		return cmdReopen(rest)
+	case "serve":
+		return cmdServe(rest)
 	case "fsck":
 		return cmdFsck(rest)
 	default:
 		return fmt.Errorf("unknown command %q (try 'git track --help')", cmd)
 	}
+}
+
+// rebuildCache regenerates the derived cache after a mutation so index reads
+// stay correct through the tool (ADR-0014).
+func rebuildCache(repo *core.Repo) error {
+	if _, err := cache.Rebuild(repo); err != nil {
+		return fmt.Errorf("updating cache: %w", err)
+	}
+	return nil
 }
 
 func openRepo() (*core.Repo, error) {
@@ -75,7 +118,110 @@ func cmdInit() error {
 	return nil
 }
 
-func cmdNew(args []string) error {
+const configStatusUsage = `usage: git track config status <verb>
+  list                        list statuses and their allowed next-sets
+  add <name> [--next a,b,c]   add a user-defined status
+  set-next <name> [next...]   replace a status's allowed next-set (empty = any)
+  rm <name>                   remove a user-defined status (built-ins refused)`
+
+func cmdConfig(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: git track config <domain> <verb>; domains: status")
+	}
+	switch args[0] {
+	case "status":
+		return cmdConfigStatus(args[1:])
+	default:
+		return fmt.Errorf("unknown config domain %q (have: status)", args[0])
+	}
+}
+
+func cmdConfigStatus(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("%s", configStatusUsage)
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	verb, rest := args[0], args[1:]
+	switch verb {
+	case "list":
+		return configStatusList(repo)
+	case "add":
+		return configStatusAdd(repo, rest)
+	case "set-next":
+		if len(rest) == 0 {
+			return fmt.Errorf("set-next requires a status name")
+		}
+		return repo.SetNextStatuses(rest[0], rest[1:])
+	case "rm":
+		if len(rest) != 1 {
+			return fmt.Errorf("rm requires exactly one status name")
+		}
+		return repo.RemoveStatus(rest[0])
+	default:
+		return fmt.Errorf("unknown config status verb %q\n%s", verb, configStatusUsage)
+	}
+}
+
+func configStatusList(repo *core.Repo) error {
+	statuses, err := repo.Statuses()
+	if err != nil {
+		return err
+	}
+	for _, s := range statuses {
+		next, err := repo.NextStatuses(s)
+		if err != nil {
+			return err
+		}
+		tag := ""
+		if core.IsBuiltinStatus(s) {
+			tag = " (built-in)"
+		}
+		nextStr := "any"
+		if len(next) > 0 {
+			nextStr = strings.Join(next, ", ")
+		}
+		fmt.Printf("%-14s%s -> %s\n", s, tag, nextStr)
+	}
+	return nil
+}
+
+func configStatusAdd(repo *core.Repo, args []string) error {
+	var name string
+	var next []string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--next":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--next requires a comma-separated list")
+			}
+			i++
+			for _, part := range strings.Split(args[i], ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					next = append(next, part)
+				}
+			}
+		default:
+			if name != "" {
+				return fmt.Errorf("add takes one status name, got extra %q", args[i])
+			}
+			name = args[i]
+		}
+	}
+	if name == "" {
+		return fmt.Errorf("add requires a status name")
+	}
+	if err := repo.AddStatus(name, next); err != nil {
+		return err
+	}
+	fmt.Printf("added status %q\n", name)
+	return nil
+}
+
+func cmdCreate(args []string) error {
 	var kind string
 	var title []string
 	for i := 0; i < len(args); i++ {
@@ -91,7 +237,7 @@ func cmdNew(args []string) error {
 		}
 	}
 	if len(title) == 0 {
-		return fmt.Errorf("new requires a title")
+		return fmt.Errorf("create requires a title")
 	}
 	repo, err := openRepo()
 	if err != nil {
@@ -101,8 +247,8 @@ func cmdNew(args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := cache.Rebuild(repo); err != nil {
-		return fmt.Errorf("updating cache: %w", err)
+	if err := rebuildCache(repo); err != nil {
+		return err
 	}
 	fmt.Println(id)
 	return nil
@@ -124,19 +270,12 @@ func cmdShow(args []string) error {
 	if err != nil {
 		return err
 	}
-	closed, err := repo.IsClosed(id)
-	if err != nil {
-		return err
-	}
 	fmt.Printf("id:      %s\n", t.ID)
 	fmt.Printf("slug:    %s\n", t.Slug)
 	fmt.Printf("kind:    %s\n", t.Kind)
 	fmt.Printf("title:   %s\n", t.Title)
-	state := t.State
-	if closed {
-		state += " (closed)"
-	}
-	fmt.Printf("state:   %s\n", state)
+	fmt.Printf("state:   %s\n", t.State)
+	fmt.Printf("status:  %s\n", t.Status)
 	for _, rel := range core.RelationKinds {
 		if targets := t.Relations[rel]; len(targets) > 0 {
 			fmt.Printf("%s: %s\n", rel, strings.Join(targets, ", "))
@@ -149,15 +288,21 @@ func cmdShow(args []string) error {
 }
 
 func cmdList(args []string) error {
-	var wantState, wantKind string
+	var wantState, wantStatus, wantKind string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "-s", "--state":
+		case "--state":
 			if i+1 >= len(args) {
-				return fmt.Errorf("-s requires a state")
+				return fmt.Errorf("--state requires a value")
 			}
 			i++
 			wantState = args[i]
+		case "-s", "--status":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--status requires a value")
+			}
+			i++
+			wantStatus = args[i]
 		case "-k", "--kind":
 			if i+1 >= len(args) {
 				return fmt.Errorf("-k requires a kind")
@@ -184,13 +329,283 @@ func cmdList(args []string) error {
 		if wantState != "" && t.State != wantState {
 			continue
 		}
+		if wantStatus != "" && t.Status != wantStatus {
+			continue
+		}
 		if wantKind != "" && t.Kind != wantKind {
 			continue
 		}
 		short := strings.ReplaceAll(id, "-", "")[:8]
-		fmt.Printf("%s  %-11s %-8s %s\n", short, t.State, t.Kind, t.Title)
+		fmt.Printf("%s  %-6s %-11s %-8s %s\n", short, t.State, t.Status, t.Kind, t.Title)
 	}
 	return nil
+}
+
+func cmdUpdate(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("update requires a track reference")
+	}
+	ref := args[0]
+	rest := args[1:]
+	fields := map[string]string{} // field -> value, applied after resolve
+	var newStatus string
+	for i := 0; i < len(rest); i++ {
+		if i+1 >= len(rest) {
+			return fmt.Errorf("%s requires a value", rest[i])
+		}
+		val := rest[i+1]
+		switch rest[i] {
+		case "-t", "--title":
+			fields["title"] = val
+		case "-k", "--kind":
+			fields["kind"] = val
+		case "-d", "--description":
+			fields["description"] = val
+		case "-s", "--status":
+			// status moves through the workflow (ADR-0019); state (open/closed)
+			// changes only via close/reopen.
+			newStatus = val
+		default:
+			return fmt.Errorf("unknown update flag %q", rest[i])
+		}
+		i++
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	id, err := repo.Resolve(ref)
+	if err != nil {
+		return err
+	}
+	for name, val := range fields {
+		if err := repo.SetField(id, name, val); err != nil {
+			return err
+		}
+	}
+	if newStatus != "" {
+		if err := repo.SetStatus(id, newStatus); err != nil {
+			return err
+		}
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("updated %s\n", id)
+	return nil
+}
+
+func cmdGet(args []string) error {
+	asJSON := false
+	var accessor string
+	for _, a := range args {
+		switch a {
+		case "--json":
+			asJSON = true
+		default:
+			if accessor != "" {
+				return fmt.Errorf("get takes one accessor, got extra %q", a)
+			}
+			accessor = a
+		}
+	}
+	if accessor == "" {
+		return fmt.Errorf("get requires <ref>[.path]")
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	v, err := repo.Get(accessor)
+	if err != nil {
+		return err
+	}
+	if asJSON {
+		return printJSON(v)
+	}
+	return printValue(v)
+}
+
+// printValue renders a resolved Value in human-readable form.
+func printValue(v *core.Value) error {
+	switch v.Kind {
+	case "scalar":
+		fmt.Println(v.Scalar)
+	case "list":
+		for _, e := range v.List {
+			fmt.Println(e)
+		}
+	case "object":
+		t := v.Object
+		fmt.Printf("id:      %s\nslug:    %s\nkind:    %s\ntitle:   %s\nstate:   %s\nstatus:  %s\n",
+			t.ID, t.Slug, t.Kind, t.Title, t.State, t.Status)
+	}
+	return nil
+}
+
+// printJSON renders a resolved Value as JSON for scripting.
+func printJSON(v *core.Value) error {
+	var payload any
+	switch v.Kind {
+	case "scalar":
+		payload = v.Scalar
+	case "list":
+		payload = v.List
+	case "object":
+		payload = v.Object
+	}
+	b, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding json: %w", err)
+	}
+	fmt.Println(string(b))
+	return nil
+}
+
+func cmdSet(args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("set requires <ref>.<key> <value>")
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	if err := repo.Set(args[0], args[1]); err != nil {
+		return err
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("set %s\n", args[0])
+	return nil
+}
+
+func cmdSearch(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("search requires a query")
+	}
+	query := strings.ToLower(strings.Join(args, " "))
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	ids, err := repo.ListIDs()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		t, err := repo.Load(id)
+		if err != nil {
+			return err
+		}
+		hay := strings.ToLower(t.Title + "\n" + t.Description + "\n" + t.Slug)
+		if strings.Contains(hay, query) {
+			short := strings.ReplaceAll(id, "-", "")[:8]
+			fmt.Printf("%s  %-6s %-11s %-8s %s\n", short, t.State, t.Status, t.Kind, t.Title)
+		}
+	}
+	return nil
+}
+
+func cmdClose(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("close requires a track reference")
+	}
+	ref := args[0]
+	var status string
+	rest := args[1:]
+	for i := 0; i < len(rest); i++ {
+		arg := rest[i]
+		// support --status=value as well as --status value / -s value
+		if v, ok := strings.CutPrefix(arg, "--status="); ok {
+			status = v
+			continue
+		}
+		switch arg {
+		case "-s", "--status":
+			if i+1 >= len(rest) {
+				return fmt.Errorf("--status requires a value")
+			}
+			i++
+			status = rest[i]
+		default:
+			return fmt.Errorf("unknown close option %q", arg)
+		}
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	id, err := repo.Resolve(ref)
+	if err != nil {
+		return err
+	}
+	if err := repo.Close(id, status); err != nil {
+		return err
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("closed %s\n", id)
+	return nil
+}
+
+func cmdReopen(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("reopen requires exactly one track reference")
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	id, err := repo.Resolve(args[0])
+	if err != nil {
+		return err
+	}
+	if err := repo.Reopen(id); err != nil {
+		return err
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("reopened %s\n", id)
+	return nil
+}
+
+func cmdServe(args []string) error {
+	addr := "127.0.0.1:0"
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--addr":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--addr requires a value")
+			}
+			i++
+			addr = args[i]
+		default:
+			return fmt.Errorf("unknown serve option %q", args[i])
+		}
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	// Clean shutdown on SIGINT.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(repo, addr, func(url string) {
+			fmt.Printf("gitrack serving at %s (Ctrl-C to stop)\n", url)
+		})
+	}()
+	select {
+	case <-ctx.Done():
+		fmt.Println("\nshutting down")
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
 
 func cmdFsck(args []string) error {
@@ -212,7 +627,12 @@ func cmdFsck(args []string) error {
 			return err
 		}
 		fmt.Println("cache rebuilt from authoritative data")
-		reportDangling(rep)
+		// A rebuild fixes the cache, but dangling links and guardrail warnings
+		// are authored-data facts a rebuild must not silently fix (ADR-0026).
+		reportIssues(rep)
+		if len(rep.Dangling) > 0 || len(rep.Warnings) > 0 {
+			return errDrift
+		}
 		return nil
 	}
 	rep, err := cache.Verify(repo)
@@ -220,27 +640,36 @@ func cmdFsck(args []string) error {
 		return err
 	}
 	if rep.Clean() {
-		fmt.Println("cache is clean")
+		fmt.Println("cache is clean; no guardrail divergences")
 		return nil
 	}
 	for _, m := range rep.Missing {
-		fmt.Printf("missing: %s\n", m)
+		fmt.Printf("missing:  %s\n", m)
 	}
 	for _, e := range rep.Extra {
-		fmt.Printf("extra:   %s\n", e)
+		fmt.Printf("extra:    %s\n", e)
 	}
-	reportDangling(rep)
-	fmt.Fprintln(os.Stderr, "\nrun 'git track fsck --write' to rebuild")
-	// Exit nonzero on drift so CI and scripts can gate on a clean cache,
-	// matching 'git fsck' and linter conventions.
+	reportIssues(rep)
+	if len(rep.Missing) > 0 || len(rep.Extra) > 0 {
+		fmt.Fprintln(os.Stderr, "\nrun 'git track fsck --write' to rebuild the cache")
+	}
+	// Exit nonzero on any divergence so CI and scripts can gate, matching
+	// 'git fsck' and linter conventions.
 	return errDrift
 }
 
-// errDrift signals that a read-only fsck found the cache out of date.
-var errDrift = fmt.Errorf("cache is out of date")
+// errDrift signals that fsck found the cache out of date or a guardrail
+// divergence (ADR-0026).
+var errDrift = fmt.Errorf("fsck found divergences")
 
-func reportDangling(rep cache.Report) {
+// reportIssues prints dangling links and guardrail warnings (ADR-0026). The
+// warnings are advisory: the data is valid; config is a guardrail, not
+// enforcement, so fsck reports rather than rewrites.
+func reportIssues(rep cache.Report) {
 	for _, d := range rep.Dangling {
 		fmt.Printf("dangling: %s\n", d)
+	}
+	for _, w := range rep.Warnings {
+		fmt.Printf("warning:  %s\n", w)
 	}
 }

@@ -69,17 +69,24 @@ func Init(root string) (*Repo, error) {
 	if _, err := os.Stat(tp); err == nil {
 		return nil, fmt.Errorf("%s already exists", tp)
 	}
-	if err := os.MkdirAll(filepath.Join(tp, "config", "workflow"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tp, "config", "statuses"), 0o755); err != nil {
 		return nil, fmt.Errorf("creating config dir: %w", err)
 	}
 	// git-ignore the derived cache; keep everything else tracked (ADR-0014).
 	if err := os.WriteFile(filepath.Join(tp, ".gitignore"), []byte("/cache/\n"), 0o644); err != nil {
 		return nil, fmt.Errorf("writing .gitignore: %w", err)
 	}
+	// Kinds (cosmetic, ADR-0006). Statuses follow ADR-0019: new/reopened/done are
+	// built in; a starter workflow is seeded as per-status next-status files so a
+	// fresh tracker demonstrates the model (each file = that status's transitions).
+	// state (open/closed) is fixed and needs no config.
 	writes := map[string]string{
-		filepath.Join("config", "kinds"):         "task\nbug\nnote\nepic\nproject\n",
-		filepath.Join("config", "states"):        "new\ntriaged\nin-progress\nin-review\ndone\nwontfix\nduplicate\n",
-		filepath.Join("config", "states.closed"): "done\nwontfix\nduplicate\n",
+		filepath.Join("config", "kinds"):                   "task\nbug\nnote\nepic\nproject\n",
+		filepath.Join("config", "statuses", "new"):         "triaged\nin-progress\ndone\n",
+		filepath.Join("config", "statuses", "triaged"):     "in-progress\ndone\n",
+		filepath.Join("config", "statuses", "in-progress"): "in-review\ndone\n",
+		filepath.Join("config", "statuses", "in-review"):   "in-progress\ndone\n",
+		filepath.Join("config", "statuses", "reopened"):    "in-progress\ndone\n",
 	}
 	for rel, content := range writes {
 		if err := os.WriteFile(filepath.Join(tp, rel), []byte(content), 0o644); err != nil {

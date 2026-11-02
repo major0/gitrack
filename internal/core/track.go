@@ -16,24 +16,25 @@ var RelationKinds = []string{"depends-on", "child-of", "related", "duplicate-of"
 // Track is a materialized view of one tracker object, read from its authoritative
 // files. It is a convenience snapshot; the files on disk remain the truth.
 type Track struct {
-	ID          string
-	Kind        string
-	Slug        string
-	Title       string
-	Description string
-	State       string
-	Created     string
-	Labels      []string
-	Assignees   []string
-	Relations   map[string][]string // rel kind -> target UUIDs
+	ID          string              `json:"id"`
+	Kind        string              `json:"kind"`
+	Slug        string              `json:"slug"`
+	Title       string              `json:"title"`
+	Description string              `json:"description,omitempty"`
+	State       string              `json:"state"`  // fixed: open | closed (ADR-0019)
+	Status      string              `json:"status"` // customizable workflow position (ADR-0019)
+	Created     string              `json:"created,omitempty"`
+	Labels      []string            `json:"labels,omitempty"`
+	Assignees   []string            `json:"assignees,omitempty"`
+	Relations   map[string][]string `json:"relations,omitempty"` // rel kind -> target UUIDs
 }
 
-// NewTrackOpts carries the inputs for creating a track.
+// NewTrackOpts carries the inputs for creating a track. A new track's state is
+// always "new" (ADR-0017), so it is not an option here.
 type NewTrackOpts struct {
 	Kind        string
 	Title       string
 	Description string
-	State       string
 }
 
 // Create mints a new track with a UUIDv7 identity and writes its authoritative
@@ -47,19 +48,17 @@ func (r *Repo) Create(opts NewTrackOpts) (string, error) {
 	if kind == "" {
 		kind = "task" // cosmetic default (ADR-0006)
 	}
-	state := opts.State
-	if state == "" {
-		state = "new"
-	}
 	dir := r.trackPath(id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("creating track dir: %w", err)
 	}
+	// A new track is open with status "new" (ADR-0019).
 	fields := map[string]string{
 		"kind":    kind,
 		"slug":    Slugify(opts.Title, id),
 		"title":   opts.Title,
-		"state":   state,
+		"state":   StateOpen,
+		"status":  StatusNew,
 		"created": time.Now().UTC().Format(time.RFC3339),
 	}
 	if opts.Description != "" {
@@ -124,7 +123,8 @@ func (r *Repo) Load(id string) (*Track, error) {
 		dst  *string
 	}{
 		{"kind", &t.Kind}, {"slug", &t.Slug}, {"title", &t.Title},
-		{"description", &t.Description}, {"state", &t.State}, {"created", &t.Created},
+		{"description", &t.Description}, {"state", &t.State}, {"status", &t.Status},
+		{"created", &t.Created},
 	} {
 		v, err := r.GetField(id, f.name)
 		if err != nil {
@@ -175,4 +175,41 @@ func Slugify(title, id string) string {
 		return "track-" + strings.ReplaceAll(id, "-", "")[:8]
 	}
 	return slug
+}
+
+// SetStatus moves a track to a new workflow status, enforcing the transition
+// rules (ADR-0019). It does not change state (open/closed); use Close/Reopen for
+// that. It rejects a disallowed transition.
+func (r *Repo) SetStatus(id, to string) error {
+	from, err := r.GetField(id, "status")
+	if err != nil {
+		return err
+	}
+	if from == to {
+		return nil
+	}
+	if err := r.ValidateStatusTransition(from, to); err != nil {
+		return err
+	}
+	return r.SetField(id, "status", to)
+}
+
+// Close sets state=closed and moves status to a closing status: the given one,
+// or the built-in "done" when none is supplied (ADR-0019).
+func (r *Repo) Close(id, status string) error {
+	if status == "" {
+		status = StatusDone
+	}
+	if err := r.SetField(id, "status", status); err != nil {
+		return err
+	}
+	return r.SetField(id, "state", StateClosed)
+}
+
+// Reopen sets state=open and status=reopened (ADR-0019).
+func (r *Repo) Reopen(id string) error {
+	if err := r.SetField(id, "status", StatusReopened); err != nil {
+		return err
+	}
+	return r.SetField(id, "state", StateOpen)
 }

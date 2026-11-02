@@ -42,8 +42,10 @@ func TestRebuildProducesExpectedEntries(t *testing.T) {
 	}
 	root := filepath.Join(repo.Root, core.Dir, "cache")
 	wantExist := []string{
-		filepath.Join("state", "new", a),
-		filepath.Join("state", "new", b),
+		filepath.Join("state", "open", a), // ADR-0019: new tracks are open
+		filepath.Join("state", "open", b),
+		filepath.Join("status", "new", a), // ...with status new
+		filepath.Join("status", "new", b),
 		filepath.Join("type", "task", a),
 		filepath.Join("type", "bug", b),
 		filepath.Join("refs-in", a, "depends-on", b), // reverse of B depends-on A
@@ -76,7 +78,7 @@ func TestVerifyDetectsDrift(t *testing.T) {
 		t.Fatalf("Rebuild: %v", err)
 	}
 	// Inject a stale entry (a in a bucket it does not belong to).
-	stale := filepath.Join(repo.Root, core.Dir, "cache", "state", "done", a)
+	stale := filepath.Join(repo.Root, core.Dir, "cache", "state", "closed", a)
 	if err := os.MkdirAll(filepath.Dir(stale), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -92,6 +94,43 @@ func TestVerifyDetectsDrift(t *testing.T) {
 	}
 	if len(rep.Extra) != 1 {
 		t.Errorf("expected 1 extra entry, got %v", rep.Extra)
+	}
+}
+
+func TestGuardrailWarnings(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	id, err := repo.Create(core.NewTrackOpts{Title: "bypass me"})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// Bypass the CLI: hand-edit the track into states/statuses/kinds that the
+	// config does not define (ADR-0026 — the tree is openly editable).
+	td := func(field, val string) {
+		if e := os.WriteFile(filepath.Join(repo.Root, core.Dir, id, field), []byte(val+"\n"), 0o644); e != nil {
+			t.Fatalf("write %s: %v", field, e)
+		}
+	}
+	td("status", "invented-status")
+	td("state", "weird")
+	td("kind", "not-a-kind")
+
+	rep, err := Verify(repo)
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if len(rep.Warnings) != 3 {
+		t.Fatalf("want 3 guardrail warnings, got %d: %v", len(rep.Warnings), rep.Warnings)
+	}
+	if rep.Clean() {
+		t.Error("Clean() must be false when guardrail warnings exist")
+	}
+	// fsck must NOT rewrite authored fields (ADR-0026): the bad values persist.
+	if s, _ := repo.GetField(id, "status"); s != "invented-status" {
+		t.Errorf("fsck altered authored status to %q", s)
 	}
 }
 
