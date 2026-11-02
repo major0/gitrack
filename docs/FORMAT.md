@@ -34,6 +34,16 @@ Grounding decisions:
    authoritative data diverges from the guardrails as advisory warnings and
    never rewrites an authored field to match config.
 
+### Committing
+
+`git track init` **commits** the scaffold by default (a one-time bootstrap
+commit, using your own git identity); pass `--no-commit` to leave it staged.
+Every *other* mutating command (`create`, `update`, `close`, `comment`,
+relationship edits, ...) writes working-tree files and does **not** auto-commit,
+so tracker changes stage alongside — and merge with — the related code change.
+That is the whole point (Principle 2): you close a bug in the same commit as its
+fix. gitrack never injects a git identity; commits use your configured one.
+
 ## 2. The key/value rule (the whole model in one sentence)
 
 > A single-valued attribute is a **file** whose name is the key and whose

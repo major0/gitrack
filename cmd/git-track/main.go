@@ -30,7 +30,7 @@ type command struct {
 }
 
 var commands = []command{
-	{"init", "", "initialize a tracker in the current repository"},
+	{"init", "[--no-commit]", "initialize a tracker (commits the scaffold unless --no-commit)"},
 	{"config", "status ...", "edit status workflows (see 'config status')"},
 	{"create", "[-k kind] <title>", "create a track, print its id"},
 	{"update", "<ref> [flags]", "change a track's title/status/kind/description"},
@@ -101,7 +101,7 @@ func run(args []string) error {
 	cmd, rest := args[0], args[1:]
 	switch cmd {
 	case "init":
-		return cmdInit()
+		return cmdInit(rest)
 	case "config":
 		return cmdConfig(rest)
 	case "create":
@@ -156,7 +156,16 @@ func openRepo() (*core.Repo, error) {
 	return core.Open(wd)
 }
 
-func cmdInit() error {
+func cmdInit(args []string) error {
+	commit := true
+	for _, a := range args {
+		switch a {
+		case "--no-commit":
+			commit = false
+		default:
+			return fmt.Errorf("unknown init option %q", a)
+		}
+	}
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -166,6 +175,16 @@ func cmdInit() error {
 		return err
 	}
 	fmt.Printf("initialized gitrack tracker in %s/%s\n", repo.Root, core.Dir)
+	// init commits the scaffold by default (a natural one-time bootstrap
+	// commit); --no-commit leaves it staged for the user. Other mutating
+	// commands never auto-commit, so tracker changes ride along with the
+	// related code change.
+	if commit {
+		if err := repo.Commit(core.Dir, "gitrack: initialize tracker"); err != nil {
+			return fmt.Errorf("committing scaffold (use --no-commit to skip): %w", err)
+		}
+		fmt.Println("committed the tracker scaffold")
+	}
 	return nil
 }
 

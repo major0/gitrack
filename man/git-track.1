@@ -11,8 +11,8 @@ git working tree and merges as part of an ordinary \fBgit merge\fR. It installs
 as \fBgit-track\fR on \fBPATH\fR and runs as the \fBgit track\fR subcommand.
 .SH COMMANDS
 .TP
-.B init
-initialize a tracker in the current repository
+.B init [\-\-no\-commit]
+initialize a tracker (commits the scaffold unless \-\-no\-commit)
 .TP
 .B config status ...
 edit status workflows (see 'config status')
