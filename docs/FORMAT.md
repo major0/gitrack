@@ -188,6 +188,13 @@ The comment body in Markdown.
 The thread tree is reconstructed from each comment's `reply-to`; absence means a
 top-level comment. `get <ref>.comments` lists bare comment UUIDs (ADR-0022).
 
+Comments are written with `git track comment <ref>`: `-m <msg>` for a
+non-interactive body, or (no `-m`) `$EDITOR` opens on a temp file; `--reply-to
+<cid>` sets the `reply-to` and seeds the editor with the parent cite-quoted as a
+Markdown blockquote (git-commit style). The body is stored verbatim; any `#`refs
+and URLs in it are rendered by the web/issues generator (ADR-0011), not at write
+time.
+
 ## 6. Attachments
 
 `attachments/<uuid>` holds the blob; `attachments/<uuid>.meta` is YAML front

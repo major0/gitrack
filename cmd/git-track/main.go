@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 
@@ -32,6 +33,7 @@ commands:
   search <query>              find tracks by text in title/description/slug
   close <ref> [--status=s]    close a track: state=closed, status=s (default done)
   reopen <ref>                reopen a track: state=open, status=reopened
+  comment <ref> [-m msg] [--reply-to=<cid>]  add a Markdown comment
   serve [--addr 127.0.0.1:0]  live loopback preview server (random port)
   fsck [--write]              verify (or rebuild) the derived cache
 
@@ -79,6 +81,8 @@ func run(args []string) error {
 		return cmdClose(rest)
 	case "reopen":
 		return cmdReopen(rest)
+	case "comment":
+		return cmdComment(rest)
 	case "serve":
 		return cmdServe(rest)
 	case "fsck":
@@ -570,6 +574,139 @@ func cmdReopen(args []string) error {
 	}
 	fmt.Printf("reopened %s\n", id)
 	return nil
+}
+
+func cmdComment(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("comment requires a track reference")
+	}
+	ref := args[0]
+	var message, replyTo string
+	haveMessage := false
+	rest := args[1:]
+	for i := 0; i < len(rest); i++ {
+		arg := rest[i]
+		if v, ok := strings.CutPrefix(arg, "--reply-to="); ok {
+			replyTo = v
+			continue
+		}
+		switch arg {
+		case "-m", "--message":
+			if i+1 >= len(rest) {
+				return fmt.Errorf("-m requires a value")
+			}
+			i++
+			message = rest[i]
+			haveMessage = true
+		case "--reply-to":
+			if i+1 >= len(rest) {
+				return fmt.Errorf("--reply-to requires a comment id")
+			}
+			i++
+			replyTo = rest[i]
+		default:
+			return fmt.Errorf("unknown comment option %q", arg)
+		}
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	id, err := repo.Resolve(ref)
+	if err != nil {
+		return err
+	}
+	// Resolve the reply-to parent (accepts a bare comment uuid).
+	if replyTo != "" {
+		if _, err := repo.LoadComment(id, replyTo); err != nil {
+			return fmt.Errorf("--reply-to: %w", err)
+		}
+	}
+
+	body := message
+	if !haveMessage {
+		// Seed the editor: when replying, cite-quote the parent (git-commit style).
+		var seed string
+		if replyTo != "" {
+			parent, err := repo.LoadComment(id, replyTo)
+			if err != nil {
+				return err
+			}
+			seed = core.CiteQuote(parent.Body) + "\n"
+		}
+		body, err = editInEditor(seed)
+		if err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(body) == "" {
+		return fmt.Errorf("empty comment, aborting")
+	}
+	cid, err := repo.AddComment(id, body, replyTo)
+	if err != nil {
+		return err
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("added comment %s\n", cid)
+	return nil
+}
+
+// editInEditor opens $EDITOR (falling back to $VISUAL, then vi) on a temp file
+// seeded with the given content and returns the edited text. Lines beginning
+// with '#' are stripped, git-commit style, so seeded cite-quotes ('>') survive
+// but instruction comments do not.
+func editInEditor(seed string) (string, error) {
+	editor := firstNonEmpty(os.Getenv("EDITOR"), os.Getenv("VISUAL"), "vi")
+	f, err := os.CreateTemp("", "gitrack-comment-*.md")
+	if err != nil {
+		return "", fmt.Errorf("creating temp file: %w", err)
+	}
+	path := f.Name()
+	defer func() { _ = os.Remove(path) }()
+	instructions := "# Enter your comment above. Lines starting with '#' are ignored.\n" +
+		"# A blockquote ('>') citing the parent is kept.\n"
+	if _, err := f.WriteString(seed + instructions); err != nil {
+		_ = f.Close()
+		return "", fmt.Errorf("writing temp file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", err
+	}
+	cmd := exec.Command("sh", "-c", editor+" \""+path+"\"")
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("running editor %q: %w", editor, err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("reading edited file: %w", err)
+	}
+	return stripCommentLines(string(raw)), nil
+}
+
+// stripCommentLines removes lines beginning with '#' (after optional leading
+// whitespace), git-commit style.
+func stripCommentLines(s string) string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+// firstNonEmpty returns the first non-empty string among its arguments.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func cmdServe(args []string) error {
