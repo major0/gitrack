@@ -47,6 +47,21 @@ reopen a track: state=open, status=reopened
 .B comment <ref> [\-m msg] [\-\-reply\-to=<cid>]
 add a Markdown comment
 .TP
+.B depends\-on <ref> <target>
+mark <ref> as blocked by <target>
+.TP
+.B child\-of <ref> <parent>
+place <ref> under <parent> (one parent)
+.TP
+.B related <ref> <target>
+soft link, no scheduling effect
+.TP
+.B duplicate\-of <ref> <target>
+mark <ref> a duplicate of <target>
+.TP
+.B unlink <ref> <rel> <target>
+remove a relationship edge
+.TP
 .B serve [\-\-addr 127.0.0.1:0]
 live loopback preview server (random port)
 .TP

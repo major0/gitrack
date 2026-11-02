@@ -42,6 +42,11 @@ var commands = []command{
 	{"close", "<ref> [--status=s]", "close a track: state=closed, status=s (default done)"},
 	{"reopen", "<ref>", "reopen a track: state=open, status=reopened"},
 	{"comment", "<ref> [-m msg] [--reply-to=<cid>]", "add a Markdown comment"},
+	{"depends-on", "<ref> <target>", "mark <ref> as blocked by <target>"},
+	{"child-of", "<ref> <parent>", "place <ref> under <parent> (one parent)"},
+	{"related", "<ref> <target>", "soft link, no scheduling effect"},
+	{"duplicate-of", "<ref> <target>", "mark <ref> a duplicate of <target>"},
+	{"unlink", "<ref> <rel> <target>", "remove a relationship edge"},
 	{"serve", "[--addr 127.0.0.1:0]", "live loopback preview server (random port)"},
 	{"fsck", "[--write]", "verify (or rebuild) the derived cache"},
 }
@@ -118,6 +123,10 @@ func run(args []string) error {
 		return cmdReopen(rest)
 	case "comment":
 		return cmdComment(rest)
+	case "depends-on", "child-of", "related", "duplicate-of":
+		return cmdLink(cmd, rest)
+	case "unlink":
+		return cmdUnlink(rest)
 	case "serve":
 		return cmdServe(rest)
 	case "fsck":
@@ -319,6 +328,19 @@ func cmdShow(args []string) error {
 		if targets := t.Relations[rel]; len(targets) > 0 {
 			fmt.Printf("%s: %s\n", rel, strings.Join(targets, ", "))
 		}
+	}
+	// Blocked/unblocked is derived from relationships + state (ADR-0005).
+	if blockers, err := repo.Blockers(id); err == nil && len(blockers) > 0 {
+		unblocked, _ := repo.IsUnblocked(id)
+		label := "blocked"
+		if unblocked {
+			label = "unblocked"
+		}
+		short := make([]string, len(blockers))
+		for i, b := range blockers {
+			short[i] = b[:8]
+		}
+		fmt.Printf("%s by: %s\n", label, strings.Join(short, ", "))
 	}
 	if t.Description != "" {
 		fmt.Printf("\n%s\n", t.Description)
@@ -742,6 +764,64 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// cmdLink handles the relation-named verbs (depends-on/child-of/related/
+// duplicate-of), all routed through core.Link. rel is the command name.
+func cmdLink(rel string, args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("%s requires <ref> <target>", rel)
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	id, err := repo.Resolve(args[0])
+	if err != nil {
+		return err
+	}
+	target, err := repo.Resolve(args[1])
+	if err != nil {
+		return fmt.Errorf("target: %w", err)
+	}
+	if err := repo.Link(id, rel, target); err != nil {
+		return err
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("%s: %s -> %s\n", rel, id[:8], target[:8])
+	return nil
+}
+
+func cmdUnlink(args []string) error {
+	if len(args) != 3 {
+		return fmt.Errorf("unlink requires <ref> <rel> <target>")
+	}
+	rel := args[1]
+	if !core.IsRelationKind(rel) {
+		return fmt.Errorf("unknown relationship %q", rel)
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	id, err := repo.Resolve(args[0])
+	if err != nil {
+		return err
+	}
+	target, err := repo.Resolve(args[2])
+	if err != nil {
+		return fmt.Errorf("target: %w", err)
+	}
+	if err := repo.Unlink(id, rel, target); err != nil {
+		return err
+	}
+	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	fmt.Printf("unlinked %s: %s -> %s\n", rel, id[:8], target[:8])
+	return nil
 }
 
 func cmdServe(args []string) error {

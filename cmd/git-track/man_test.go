@@ -16,9 +16,10 @@ func TestManPageFromCommandData(t *testing.T) {
 		}
 	}
 	// single source: every command appears (bold .B <name>) so --help and the
-	// man page cannot drift (ADR-0016).
+	// man page cannot drift (ADR-0016). Names are roff-escaped, so compare
+	// against the escaped form (hyphens become \-).
 	for _, c := range commands {
-		if !strings.Contains(man, ".B "+c.Name) {
+		if !strings.Contains(man, ".B "+roffEscape(c.Name)) {
 			t.Errorf("man page missing command %q", c.Name)
 		}
 	}
