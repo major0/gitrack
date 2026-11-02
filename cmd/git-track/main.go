@@ -426,6 +426,13 @@ func cmdShow(args []string) error {
 			fmt.Printf("%s: %s\n", rel, strings.Join(targets, ", "))
 		}
 	}
+	// Commit mentions are derived from git history (ADR-0031).
+	if mentions, err := repo.Mentions(id); err == nil && len(mentions) > 0 {
+		fmt.Println("mentions:")
+		for _, m := range mentions {
+			fmt.Printf("  %s %-8s %s\n", m.Short, m.Verb, m.Subject)
+		}
+	}
 	// Blocked/unblocked is derived from relationships + state (ADR-0005).
 	if blockers, err := repo.Blockers(id); err == nil && len(blockers) > 0 {
 		unblocked, _ := repo.IsUnblocked(id)

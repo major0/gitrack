@@ -65,11 +65,12 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 	return n, nil
 }
 
-// trackView is the data for the track page: the track plus its description with
-// #refs autolinked (ADR-0030).
+// trackView is the data for the track page: the track, its description with
+// #refs autolinked (ADR-0030), and commit mentions derived from git (ADR-0031).
 type trackView struct {
 	Track    *core.Track
 	DescHTML template.HTML
+	Mentions []core.Mention
 }
 
 // render wraps body in the base layout and writes relPath under outDir.

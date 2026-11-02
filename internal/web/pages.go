@@ -28,9 +28,14 @@ func writeIndex(outDir string, tracks []*core.Track) error {
 func writeTrack(outDir string, repo *core.Repo, t *core.Track) error {
 	// Track pages live in track/<id>.html, one level below root, so refs link
 	// back up via "../" (ADR-0030).
+	mentions, err := repo.Mentions(t.ID)
+	if err != nil {
+		return err
+	}
 	view := trackView{
 		Track:    t,
 		DescHTML: autolink(repo, "../", t.Description),
+		Mentions: mentions,
 	}
 	body, err := renderBody(trackBodyTmpl, view)
 	if err != nil {

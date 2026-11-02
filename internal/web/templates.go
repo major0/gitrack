@@ -59,7 +59,11 @@ var trackBodyTmpl = template.Must(template.New("track").Funcs(tmplFuncs).Parse(`
 {{range $rel, $targets := .Track.Relations}}<p><b>{{$rel}}:</b>
 {{range $i, $t := $targets}}{{if $i}}, {{end}}<a href="{{$t}}.html"><code>{{short $t}}</code></a>{{end}}</p>
 {{end}}
-{{if .Track.Description}}<h2>Description</h2><pre>{{.DescHTML}}</pre>{{end}}`))
+{{if .Track.Description}}<h2>Description</h2><pre>{{.DescHTML}}</pre>{{end}}
+{{if .Mentions}}<h2>Mentions</h2>
+<ul>
+{{range .Mentions}}<li><code>{{.Short}}</code> <b>{{.Verb}}</b> &mdash; {{.Subject}}</li>
+{{end}}</ul>{{end}}`))
 
 // boardBodyTmpl renders the Ready/Blocked board (offline-complete, pure HTML)
 // plus the dependency digraph as a PROGRESSIVE ENHANCEMENT: Mermaid via CDN

@@ -358,6 +358,14 @@ resolves to an existing track (ADR-0030); a non-resolving `#` stays plain text.
 Links are relative, so they work offline and from a moved site. Comment bodies
 use the same autolinker when rendered.
 
+A track's **mentions** are derived from git history (ADR-0031, never stored):
+commits whose message references the track via `#<handle>` — `closes #<id>` /
+`resolves` / `fixes` (verb `closes`), `relates to #<id>` / `related to` (verb
+`relates`), or a bare `#<id>` (verb `mentions`). `git track show` and the web
+track page list them (short-sha + verb + subject), so the source tree
+cross-references the tracker. A `closes #<id>` commit does **not** auto-close the
+track — gitrack has no server; closing is the explicit `git track close`.
+
 ## 9. Derived views (the "dumb code" contract)
 
 Authored data is read directly; derived data is computed, never stored
