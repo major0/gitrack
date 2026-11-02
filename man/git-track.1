@@ -47,6 +47,9 @@ reopen a track: state=open, status=reopened
 .B comment <ref> [\-m msg] [\-\-reply\-to=<cid>]
 add a Markdown comment
 .TP
+.B commit \-m <msg> [\-\-resolve <id>] [\-\-status s]
+commit staged files, optionally closing tracks
+.TP
 .B depends\-on <ref> <target>
 mark <ref> as blocked by <target>
 .TP

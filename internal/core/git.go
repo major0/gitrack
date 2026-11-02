@@ -141,3 +141,25 @@ func mentionSlice(m map[string]Mention) []Mention {
 	sort.Slice(out, func(i, j int) bool { return out[i].SHA < out[j].SHA })
 	return out
 }
+
+// StageTracker stages the tracker path into the index (git add .gitrack),
+// without committing. Used by the commit wrapper so a resolve's tracker change
+// joins the user's already-staged files in one revision.
+func (r *Repo) StageTracker() error {
+	if out, err := exec.Command("git", "-C", r.Root, "add", "--", Dir).CombinedOutput(); err != nil {
+		return fmt.Errorf("git add %s: %w: %s", Dir, err, out)
+	}
+	return nil
+}
+
+// CommitStaged commits the WHOLE staged index with the given message, using the
+// system git (user identity, config, hooks). Unlike Commit (which scopes to
+// pathspecs), this is the `git track commit` wrapper: it records the user's
+// currently-staged files together with any tracker changes already staged, as a
+// single revision (ADR-0032).
+func (r *Repo) CommitStaged(message string) error {
+	if out, err := exec.Command("git", "-C", r.Root, "commit", "-m", message).CombinedOutput(); err != nil {
+		return fmt.Errorf("git commit: %w: %s", err, out)
+	}
+	return nil
+}

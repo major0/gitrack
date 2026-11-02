@@ -43,6 +43,7 @@ var commands = []command{
 	{"close", "<ref> [--status=s]", "close a track: state=closed, status=s (default done)"},
 	{"reopen", "<ref>", "reopen a track: state=open, status=reopened"},
 	{"comment", "<ref> [-m msg] [--reply-to=<cid>]", "add a Markdown comment"},
+	{"commit", "-m <msg> [--resolve <id>] [--status s]", "commit staged files, optionally closing tracks"},
 	{"depends-on", "<ref> <target>", "mark <ref> as blocked by <target>"},
 	{"child-of", "<ref> <parent>", "place <ref> under <parent> (one parent)"},
 	{"related", "<ref> <target>", "soft link, no scheduling effect"},
@@ -133,6 +134,8 @@ func run(args []string) error {
 		return cmdReopen(rest)
 	case "comment":
 		return cmdComment(rest)
+	case "commit":
+		return cmdCommit(rest)
 	case "depends-on", "child-of", "related", "duplicate-of":
 		return cmdLink(cmd, rest)
 	case "unlink":
@@ -765,6 +768,91 @@ func cmdReopen(args []string) error {
 		return err
 	}
 	fmt.Printf("reopened %s\n", id)
+	return nil
+}
+
+// cmdCommit wraps `git commit` of the staged index and optionally closes tracks
+// (--resolve), bundling the close(s) into the same revision (ADR-0032).
+func cmdCommit(args []string) error {
+	var message, status string
+	var resolve []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if v, ok := strings.CutPrefix(arg, "--resolve="); ok {
+			resolve = append(resolve, v)
+			continue
+		}
+		if v, ok := strings.CutPrefix(arg, "--status="); ok {
+			status = v
+			continue
+		}
+		switch arg {
+		case "-m", "--message":
+			if i+1 >= len(args) {
+				return fmt.Errorf("-m requires a value")
+			}
+			i++
+			message = args[i]
+		case "--resolve":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--resolve requires a track id")
+			}
+			i++
+			resolve = append(resolve, args[i])
+		case "--status":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--status requires a value")
+			}
+			i++
+			status = args[i]
+		default:
+			return fmt.Errorf("unknown commit option %q", arg)
+		}
+	}
+	if message == "" {
+		return fmt.Errorf("commit requires -m <message>")
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	// Close each resolved track and collect its slug for the commit message.
+	var closedSlugs []string
+	for _, ref := range resolve {
+		id, err := repo.Resolve(ref)
+		if err != nil {
+			return fmt.Errorf("--resolve %q: %w", ref, err)
+		}
+		if err := repo.Close(id, status); err != nil {
+			return err
+		}
+		slug, _ := repo.GetField(id, "slug")
+		if slug == "" {
+			slug = id[:8]
+		}
+		closedSlugs = append(closedSlugs, slug)
+	}
+	if len(resolve) > 0 {
+		if err := rebuildCache(repo); err != nil {
+			return err
+		}
+		// stage the tracker change so it joins the staged files in one revision
+		if err := repo.StageTracker(); err != nil {
+			return err
+		}
+		// append `closes #<slug>` lines so the mention (ADR-0031) is recorded
+		for _, slug := range closedSlugs {
+			message += "\n\ncloses #" + slug
+		}
+	}
+	if err := repo.CommitStaged(message); err != nil {
+		return err
+	}
+	if len(closedSlugs) > 0 {
+		fmt.Printf("committed; closed %s\n", strings.Join(closedSlugs, ", "))
+	} else {
+		fmt.Println("committed staged changes")
+	}
 	return nil
 }
 

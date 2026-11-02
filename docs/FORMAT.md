@@ -358,6 +358,15 @@ resolves to an existing track (ADR-0030); a non-resolving `#` stays plain text.
 Links are relative, so they work offline and from a moved site. Comment bodies
 use the same autolinker when rendered.
 
+`git track commit -m <msg>` wraps `git commit` of the **currently staged files**;
+`--resolve <id>` (repeatable) additionally **closes** each named track (status
+`done`, or `--status <s>`) and bundles that close into the *same* revision, with
+a `closes #<slug>` line appended to the message (ADR-0032). So the code fix and
+the track close ship as one commit whose message reads `closes #<slug>` — the
+explicit, author-driven form of close-on-commit. Passively observing a `closes`
+commit never auto-closes (ADR-0031); only `git track close` and `commit
+--resolve` change state.
+
 A track's **mentions** are derived from git history (ADR-0031, never stored):
 commits whose message references the track via `#<handle>` — `closes #<id>` /
 `resolves` / `fixes` (verb `closes`), `relates to #<id>` / `related to` (verb

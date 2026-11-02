@@ -81,3 +81,68 @@ func TestMentionsFromHistory(t *testing.T) {
 		t.Error("a 'closes' commit must not auto-close the track")
 	}
 }
+
+func TestCommitStagedBundlesIndex(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	run("init", "-q", "-b", "trunk")
+	run("config", "user.email", "t@t.t")
+	run("config", "user.name", "t")
+
+	id, err := repo.Create(NewTrackOpts{Title: "x"})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// user stages a code file; gitrack closes the track and stages the tracker
+	if err := exec.Command("git", "-C", dir, "add", "-A").Run(); err != nil {
+		t.Fatalf("stage initial: %v", err)
+	}
+	if err := repo.CommitStaged("init"); err != nil {
+		t.Fatalf("CommitStaged init: %v", err)
+	}
+
+	// now: stage a code file, close the track, stage tracker, commit together
+	if err := exec.Command("git", "-C", dir, "commit", "--allow-empty", "-qm", "base").Run(); err != nil {
+		t.Fatalf("base: %v", err)
+	}
+	// write a code file and stage it
+	if err := exec.Command("git", "-C", dir, "init").Run(); err == nil { // no-op guard
+		_ = err
+	}
+	// create a staged file
+	f := dir + "/fix.go"
+	if err := exec.Command("sh", "-c", "echo fixed > "+f).Run(); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	run("add", "fix.go")
+	if err := repo.Close(id, ""); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := repo.StageTracker(); err != nil {
+		t.Fatalf("StageTracker: %v", err)
+	}
+	if err := repo.CommitStaged("fix and resolve"); err != nil {
+		t.Fatalf("CommitStaged: %v", err)
+	}
+
+	// the HEAD commit must contain both fix.go and the track state change
+	if out, err := exec.Command("git", "-C", dir, "cat-file", "-e", "HEAD:fix.go").CombinedOutput(); err != nil {
+		t.Errorf("fix.go not in commit: %s", out)
+	}
+	if out, err := exec.Command("git", "-C", dir, "cat-file", "-e", "HEAD:.gitrack/"+id+"/state").CombinedOutput(); err != nil {
+		t.Errorf("track state not in commit: %s", out)
+	}
+	if closed, _ := repo.IsClosed(id); !closed {
+		t.Error("track should be closed")
+	}
+}
