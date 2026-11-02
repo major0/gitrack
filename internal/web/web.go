@@ -71,6 +71,7 @@ type trackView struct {
 	Track    *core.Track
 	DescHTML template.HTML
 	Mentions []core.Mention
+	Comments []*commentNode
 }
 
 // render wraps body in the base layout and writes relPath under outDir.

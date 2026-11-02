@@ -114,3 +114,50 @@ func CiteQuote(body string) string {
 	}
 	return b.String()
 }
+
+// Author and Created are derived from git history of the comment file (ADR-0023);
+// they are not stored. CommentMeta carries them alongside the loaded comment.
+type CommentMeta struct {
+	Comment
+	Author  string // "Name <email>" of the commit that added the file, or ""
+	Created string // RFC3339 date the file was added, or ""
+}
+
+// ListComments loads every comment on a track with its git-derived author and
+// created date (ADR-0023). Author/date come from `git log` on the comment file;
+// if history is unavailable (e.g. not yet committed), they are empty and the
+// comment still renders.
+func (r *Repo) ListComments(id string) ([]CommentMeta, error) {
+	names, err := r.listMulti(id, "comments")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CommentMeta, 0, len(names))
+	for _, name := range names {
+		cid := strings.TrimSuffix(name, CommentSuffix)
+		c, err := r.LoadComment(id, cid)
+		if err != nil {
+			return nil, err
+		}
+		author, created := r.commentGitMeta(id, cid)
+		out = append(out, CommentMeta{Comment: *c, Author: author, Created: created})
+	}
+	return out, nil
+}
+
+// commentGitMeta derives a comment's author and created date from git history of
+// its file path (ADR-0023). Best-effort: returns empties if git has no record.
+func (r *Repo) commentGitMeta(id, cid string) (author, created string) {
+	full := r.commentPath(id, cid)
+	// author: most recent commit touching the file
+	if out, err := gitOut(r.Root, "log", "-1", "--format=%an <%ae>", "--", full); err == nil {
+		author = strings.TrimSpace(out)
+	}
+	// created: the commit that ADDED the file (oldest add, if ever re-added)
+	if out, err := gitOut(r.Root, "log", "--diff-filter=A", "--format=%aI", "--", full); err == nil {
+		if lines := strings.Fields(out); len(lines) > 0 {
+			created = lines[len(lines)-1]
+		}
+	}
+	return author, created
+}

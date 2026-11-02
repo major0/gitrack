@@ -32,10 +32,15 @@ func writeTrack(outDir string, repo *core.Repo, t *core.Track) error {
 	if err != nil {
 		return err
 	}
+	comments, err := repo.ListComments(t.ID)
+	if err != nil {
+		return err
+	}
 	view := trackView{
 		Track:    t,
 		DescHTML: autolink(repo, "../", t.Description),
 		Mentions: mentions,
+		Comments: buildThread(repo, "../", comments),
 	}
 	body, err := renderBody(trackBodyTmpl, view)
 	if err != nil {

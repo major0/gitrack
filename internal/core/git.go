@@ -215,3 +215,14 @@ func ParseDirectives(message string) []Directive {
 	}
 	return out
 }
+
+// gitOut runs a git command in root and returns its stdout. A thin helper for
+// derived read-only queries (author/date, mentions). Errors (e.g. no history)
+// are returned so callers can degrade gracefully.
+func gitOut(root string, args ...string) (string, error) {
+	out, err := exec.Command("git", append([]string{"-C", root}, args...)...).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}

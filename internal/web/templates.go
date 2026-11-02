@@ -25,6 +25,9 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   code{background:#f4f4f4;padding:0 .2rem;border-radius:3px}
   .muted{color:#777}
   pre.mermaid{background:#fafafa;border:1px solid #eee;padding:.5rem;overflow:auto}
+  .comment{border:1px solid #eee;border-radius:4px;padding:.4rem .6rem;margin:.5rem 0}
+  .comment .comment-body{white-space:pre-wrap}
+  .replies{margin-left:1.2rem;border-left:2px solid #eee;padding-left:.6rem}
 </style>
 </head><body>
 <nav><a href="{{.Root}}index.html">tracks</a><a href="{{.Root}}board.html">board</a></nav>
@@ -63,7 +66,17 @@ var trackBodyTmpl = template.Must(template.New("track").Funcs(tmplFuncs).Parse(`
 {{if .Mentions}}<h2>Mentions</h2>
 <ul>
 {{range .Mentions}}<li><code>{{.Short}}</code> <b>{{.Verb}}</b> &mdash; {{.Subject}}</li>
-{{end}}</ul>{{end}}`))
+{{end}}</ul>{{end}}
+{{if .Comments}}<h2>Comments</h2>
+{{range .Comments}}{{template "comment" .}}{{end}}
+{{end}}
+{{define "comment"}}
+<div class="comment">
+  <div class="muted">{{if .Author}}{{.Author}}{{else}}unknown{{end}}{{if .Created}} &middot; {{.Created}}{{end}} &middot; <code>{{slice .ID 0 8}}</code></div>
+  <div class="comment-body">{{.BodyHTML}}</div>
+  {{if .Replies}}<div class="replies">{{range .Replies}}{{template "comment" .}}{{end}}</div>{{end}}
+</div>
+{{end}}`))
 
 // boardBodyTmpl renders the Ready/Blocked board (offline-complete, pure HTML)
 // plus the dependency digraph as a PROGRESSIVE ENHANCEMENT: Mermaid via CDN

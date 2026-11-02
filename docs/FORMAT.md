@@ -217,7 +217,11 @@ The comment body in Markdown.
 ```
 
 The thread tree is reconstructed from each comment's `reply-to`; absence means a
-top-level comment. `get <ref>.comments` lists bare comment UUIDs (ADR-0022).
+top-level comment. `get <ref>.comments` lists bare comment UUIDs (ADR-0022). The
+`web` generator renders comments as a **threaded tree** on the track page:
+replies nest under their parent (an orphaned reply falls back to top-level),
+each comment shows its git-derived author and date (ADR-0023, not stored), and
+`#refs` in comment bodies are autolinked (ADR-0030).
 
 Comments are written with `git track comment <ref>`: `-m <msg>` for a
 non-interactive body, or (no `-m`) `$EDITOR` opens on a temp file; `--reply-to
