@@ -75,6 +75,22 @@ func TestServeLiveRead(t *testing.T) {
 	if !strings.Contains(page, "Live Track Example") {
 		t.Errorf("track page missing title")
 	}
+
+	// board page renders live: the open track shows under Ready, with a mermaid graph
+	board := get(t, base+"/board")
+	if !strings.Contains(board, "Ready") {
+		t.Error("board page missing Ready section")
+	}
+	if !strings.Contains(board, "Live Track Example") {
+		t.Error("board page missing the open track")
+	}
+	if !strings.Contains(board, "graph LR") {
+		t.Error("board page missing the mermaid digraph")
+	}
+	// index links to the board
+	if !strings.Contains(body, `href="/board"`) {
+		t.Error("index should link to /board")
+	}
 }
 
 func get(t *testing.T, url string) string {

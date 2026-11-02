@@ -18,6 +18,7 @@ import (
 var listTmpl = template.Must(template.New("list").Parse(`<!doctype html>
 <html><head><meta charset="utf-8"><title>gitrack</title></head>
 <body>
+<p><b>all tracks</b> | <a href="/board">board</a></p>
 <h1>gitrack</h1>
 <table>
 <tr><th>id</th><th>state</th><th>status</th><th>kind</th><th>title</th></tr>
@@ -27,6 +28,36 @@ var listTmpl = template.Must(template.New("list").Parse(`<!doctype html>
 <td>{{.Title}}</td>
 </tr>
 {{end}}</table>
+</body></html>`))
+
+// boardTmpl renders the Ready/Blocked board plus an in-browser Mermaid digraph.
+// The mermaid script is loaded from a CDN so the graph renders client-side; the
+// server stays a pure read-only renderer.
+var boardTmpl = template.Must(template.New("board").Parse(`<!doctype html>
+<html><head><meta charset="utf-8"><title>gitrack board</title>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true });
+</script>
+</head>
+<body>
+<p><a href="/">all tracks</a> | <b>board</b></p>
+<h1>Board</h1>
+<h2>Ready ({{len .Ready}})</h2>
+<ul>
+{{range .Ready}}<li><a href="/track/{{.ID}}">{{slice .ID 0 8}}</a> [{{.Status}}] {{.Title}}</li>
+{{else}}<li><em>nothing ready</em></li>{{end}}
+</ul>
+<h2>Blocked ({{len .Blocked}})</h2>
+<ul>
+{{range .Blocked}}<li><a href="/track/{{.ID}}">{{slice .ID 0 8}}</a> [{{.Status}}] {{.Title}}
+ &mdash; waiting on {{range $i, $b := .OpenBlockers}}{{if $i}}, {{end}}{{slice $b 0 8}}{{end}}</li>
+{{else}}<li><em>nothing blocked</em></li>{{end}}
+</ul>
+<h2>Dependency graph</h2>
+<pre class="mermaid">
+{{.Mermaid}}
+</pre>
 </body></html>`))
 
 // trackTmpl renders a single track.
@@ -78,6 +109,7 @@ func Serve(repo *core.Repo, addr string, announce func(url string)) error {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex(repo))
+	mux.HandleFunc("/board", handleBoard(repo))
 	mux.HandleFunc("/track/", handleTrack(repo))
 	if announce != nil {
 		announce("http://" + ln.Addr().String())
@@ -110,6 +142,38 @@ func handleIndex(repo *core.Repo) http.HandlerFunc {
 		sort.Slice(tracks, func(i, j int) bool { return tracks[i].ID < tracks[j].ID })
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := listTmpl.Execute(w, tracks); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+// handleBoard renders the Ready/Blocked board and the dependency digraph,
+// computed live from the tree on each request (ADR-0027 view, live per ADR-0024).
+func handleBoard(repo *core.Repo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		board, err := repo.ComputeBoard()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var ready, blocked []core.BoardEntry
+		for _, e := range board.Entries {
+			if !e.Open {
+				continue
+			}
+			if e.Ready() {
+				ready = append(ready, e)
+			} else {
+				blocked = append(blocked, e)
+			}
+		}
+		data := struct {
+			Ready   []core.BoardEntry
+			Blocked []core.BoardEntry
+			Mermaid template.HTML
+		}{ready, blocked, template.HTML(board.Mermaid())} //nolint:gosec // board data is local, not user HTML
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := boardTmpl.Execute(w, data); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}

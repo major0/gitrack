@@ -364,7 +364,9 @@ No fold, no replay, no authoritative cache. The git-ignored `.gitrack/cache/`
 (default `127.0.0.1:0`) and prints its URL, in the spirit of `hugo server`. It
 renders the **current tracker state live** — each request reads the authoritative
 tree, so a track created or changed after startup appears on the next request
-with no restart. It is read-only (no mutation endpoint) and refuses any
+with no restart. Routes: `/` (track index), `/track/<id>` (one track), and
+`/board` (the Ready/Blocked view plus the dependency digraph rendered in-browser
+via Mermaid, ADR-0027). It is read-only (no mutation endpoint) and refuses any
 non-loopback bind. The Git-Web source-code view and live-reload push are planned
 follow-ons.
 

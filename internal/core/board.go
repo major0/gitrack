@@ -1,6 +1,10 @@
 package core
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
 
 // BoardEntry is one track's place on the board: its id/title/status, whether it
 // is open, and the ids of its OPEN blockers (empty means ready).
@@ -106,4 +110,60 @@ func (r *Repo) ComputeBoard() (*Board, error) {
 // Ready reports whether an entry is actionable now: open with no open blocker.
 func (e BoardEntry) Ready() bool {
 	return e.Open && len(e.OpenBlockers) == 0
+}
+
+// Mermaid renders the board's blocking digraph as a Mermaid "graph LR" body
+// (without the surrounding code fence, so callers can embed it in HTML or wrap
+// it in a Markdown fence). Edges point blocker -> blocked (ADR-0005); ready and
+// closed nodes get classes. Shared by the CLI and the serve board page.
+func (b *Board) Mermaid() string {
+	var sb strings.Builder
+	sb.WriteString("graph LR\n")
+	for _, e := range b.Entries {
+		node := e.ID[:8]
+		label := node + ": " + e.Title
+		switch {
+		case !e.Open:
+			sb.WriteString(fmt.Sprintf("  %s[%q]:::closed\n", node, label))
+		case e.Ready():
+			sb.WriteString(fmt.Sprintf("  %s[%q]:::ready\n", node, label))
+		default:
+			sb.WriteString(fmt.Sprintf("  %s[%q]\n", node, label))
+		}
+	}
+	for _, edge := range b.Edges {
+		sb.WriteString(fmt.Sprintf("  %s --> %s\n", edge.From[:8], edge.To[:8]))
+	}
+	sb.WriteString("  classDef ready fill:#cfc,stroke:#2a2;\n")
+	sb.WriteString("  classDef closed fill:#eee,stroke:#999,color:#999;\n")
+	return sb.String()
+}
+
+// DOT renders the board's blocking digraph as a Graphviz DOT document.
+func (b *Board) DOT() string {
+	var sb strings.Builder
+	sb.WriteString("digraph gitrack {\n  rankdir=LR;\n  node [shape=box];\n")
+	for _, e := range b.Entries {
+		node := e.ID[:8]
+		label := dotEscape(node + ": " + e.Title)
+		switch {
+		case !e.Open:
+			sb.WriteString(fmt.Sprintf("  %q [label=%q, style=filled, fillcolor=\"#eeeeee\", fontcolor=\"#999999\"];\n", node, label))
+		case e.Ready():
+			sb.WriteString(fmt.Sprintf("  %q [label=%q, style=filled, fillcolor=\"#ccffcc\"];\n", node, label))
+		default:
+			sb.WriteString(fmt.Sprintf("  %q [label=%q];\n", node, label))
+		}
+	}
+	for _, edge := range b.Edges {
+		sb.WriteString(fmt.Sprintf("  %q -> %q;\n", edge.From[:8], edge.To[:8]))
+	}
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
+// dotEscape escapes backslashes and quotes for a DOT label.
+func dotEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `"`, `\"`)
 }
