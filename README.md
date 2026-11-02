@@ -8,8 +8,10 @@ the tracker update together — one history, one operation. No separate service,
 no separate ref namespace, fully usable offline.
 
 This is a net-new project inspired by the ideas in the original shell-era
-[gitrack](https://github.com/major0/gitrack) and by the broader family of
-VCS-embedded trackers (git-bug, BugsEverywhere, Ditz, driusan/bug). The
+gitrack — now archived at
+[major0/gitrack-old](https://github.com/major0/gitrack-old) — and by the
+broader family of VCS-embedded trackers (git-bug, BugsEverywhere, Ditz,
+driusan/bug). The
 **on-disk format is the product** (see `docs/FORMAT.md`); the CLI is one
 consumer of it. The implementation is **Go**, distributed as a single binary
 and invoked as a `git track` subcommand (ADR-0015).
