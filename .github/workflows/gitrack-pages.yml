@@ -1,0 +1,65 @@
+# Rebuild and publish the gitrack static site on every commit that touches the
+# tracker. Implements ADR-0010. The site is a pure function of .gitrack/ plus
+# git history (for the derived referenced-by view), so the checkout is full
+# depth and the build is idempotent.
+#
+# NOTE: `gitrack web --out ./site` is the generator entry point specified by
+# ADR-0010; it is forthcoming. Until it lands, the build step is the single
+# integration point to wire up — the trigger, permissions, and deploy wiring
+# below are complete and correct.
+name: gitrack-pages
+
+on:
+  push:
+    branches: [trunk, main, master]
+    paths:
+      - '.gitrack/**'
+  # allow manual republish
+  workflow_dispatch:
+
+# least privilege: read the repo, write Pages, mint the deploy token
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one in-flight deploy at a time; let a newer push supersede an older build
+concurrency:
+  group: gitrack-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for referenced-by derivation)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build git-track
+        run: go build -o ./bin/git-track ./cmd/git-track
+
+      - name: Generate static site from .gitrack/
+        run: ./bin/git-track web --out ./site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
