@@ -36,13 +36,20 @@ Grounding decisions:
 
 ### Committing
 
-`git track init` **commits** the scaffold by default (a one-time bootstrap
-commit, using your own git identity); pass `--no-commit` to leave it staged.
-Every *other* mutating command (`create`, `update`, `close`, `comment`,
-relationship edits, ...) writes working-tree files and does **not** auto-commit,
-so tracker changes stage alongside — and merge with — the related code change.
-That is the whole point (Principle 2): you close a bug in the same commit as its
-fix. gitrack never injects a git identity; commits use your configured one.
+Every mutating command (`init`, `create`, `update`, `set`, `close`, `reopen`,
+`comment`, the relationship verbs, `config status add/set-next/rm`) **commits
+its change as its own revision** (ADR-0028), using your own git identity
+(gitrack never injects one). The commit is **scoped to `.gitrack/`**: it stages
+and commits only the tracker path via `git commit -- <paths>`, so changes you
+have staged *outside* `.gitrack/` are never captured and stay staged. The
+git-ignored cache (`.gitrack/cache/`) never enters a commit.
+
+Two flags on every mutating command:
+- `--include <path>` (repeatable) adds a related file to the committed revision,
+  so you can close a bug *in the same commit as its fix* — the merges-with-code
+  property (Principle 2), made explicit and intentional.
+- `--no-commit` leaves the change staged without committing, so you can batch
+  several tracker changes (and your own edits) into one manual commit.
 
 ## 2. The key/value rule (the whole model in one sentence)
 

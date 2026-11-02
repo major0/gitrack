@@ -71,7 +71,7 @@ live loopback preview server (random port)
 .B fsck [\-\-write]
 verify (or rebuild) the derived cache
 .SH MODEL
-Every command is a verb. A track has two axes: a fixed state (open|closed) changed only by create/close/reopen, and a customizable status workflow (built\-ins new/reopened/done plus user\-defined statuses in config/statuses/) moved by 'update \-s'. update flags: \-t title | \-s status | \-k kind | \-d description. See docs/FORMAT.md for the on\-disk format.
+Every command is a verb. A track has two axes: a fixed state (open|closed) changed only by create/close/reopen, and a customizable status workflow (built\-ins new/reopened/done plus user\-defined statuses in config/statuses/) moved by 'update \-s'. update flags: \-t title | \-s status | \-k kind | \-d description.  Every mutating command commits its change as its own revision scoped to .gitrack/ (unrelated staged changes are never captured). \-\-include <path> (repeatable) bundles a related file into that revision; \-\-no\-commit leaves the change staged instead. Commits use your git identity.  See docs/FORMAT.md for the on\-disk format.
 .SH FILES
 .TP
 .B .gitrack/

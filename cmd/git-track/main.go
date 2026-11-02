@@ -57,7 +57,14 @@ const overview = `Every command is a verb. A track has two axes: a fixed state (
 changed only by create/close/reopen, and a customizable status workflow
 (built-ins new/reopened/done plus user-defined statuses in config/statuses/)
 moved by 'update -s'. update flags: -t title | -s status | -k kind |
--d description. See docs/FORMAT.md for the on-disk format.`
+-d description.
+
+Every mutating command commits its change as its own revision scoped to
+.gitrack/ (unrelated staged changes are never captured). --include <path>
+(repeatable) bundles a related file into that revision; --no-commit leaves the
+change staged instead. Commits use your git identity.
+
+See docs/FORMAT.md for the on-disk format.`
 
 // usageText renders the --help screen from the command data.
 func usageText() string {
@@ -180,10 +187,53 @@ func cmdInit(args []string) error {
 	// commands never auto-commit, so tracker changes ride along with the
 	// related code change.
 	if commit {
-		if err := repo.Commit(core.Dir, "gitrack: initialize tracker"); err != nil {
+		if err := repo.Commit("gitrack: initialize tracker", core.Dir); err != nil {
 			return fmt.Errorf("committing scaffold (use --no-commit to skip): %w", err)
 		}
 		fmt.Println("committed the tracker scaffold")
+	}
+	return nil
+}
+
+// commitOpts holds the commit-related flags shared by mutating commands
+// (ADR-0028): --no-commit opts out, --include adds extra pathspecs.
+type commitOpts struct {
+	noCommit bool
+	include  []string
+}
+
+// extractCommitFlags pulls --no-commit and repeated --include <path> out of
+// args, returning the remaining args and the parsed commit options.
+func extractCommitFlags(args []string) ([]string, commitOpts, error) {
+	var rest []string
+	var opts commitOpts
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--no-commit":
+			opts.noCommit = true
+		case "--include":
+			if i+1 >= len(args) {
+				return nil, opts, fmt.Errorf("--include requires a path")
+			}
+			i++
+			opts.include = append(opts.include, args[i])
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	return rest, opts, nil
+}
+
+// commitChange commits the tracker change as its own scoped revision unless
+// --no-commit was given (ADR-0028). The scope is .gitrack/ plus any --include
+// paths; unrelated staged changes are never captured.
+func commitChange(repo *core.Repo, opts commitOpts, subject string) error {
+	if opts.noCommit {
+		return nil
+	}
+	paths := append([]string{core.Dir}, opts.include...)
+	if err := repo.Commit(subject, paths...); err != nil {
+		return fmt.Errorf("committing change (use --no-commit to skip): %w", err)
 	}
 	return nil
 }
@@ -207,6 +257,10 @@ func cmdConfig(args []string) error {
 }
 
 func cmdConfigStatus(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) == 0 {
 		return fmt.Errorf("%s", configStatusUsage)
 	}
@@ -217,19 +271,28 @@ func cmdConfigStatus(args []string) error {
 	verb, rest := args[0], args[1:]
 	switch verb {
 	case "list":
-		return configStatusList(repo)
+		return configStatusList(repo) // read-only, no commit
 	case "add":
-		return configStatusAdd(repo, rest)
+		if err := configStatusAdd(repo, rest); err != nil {
+			return err
+		}
+		return commitChange(repo, cOpts, "gitrack: config status add")
 	case "set-next":
 		if len(rest) == 0 {
 			return fmt.Errorf("set-next requires a status name")
 		}
-		return repo.SetNextStatuses(rest[0], rest[1:])
+		if err := repo.SetNextStatuses(rest[0], rest[1:]); err != nil {
+			return err
+		}
+		return commitChange(repo, cOpts, "gitrack: config status set-next "+rest[0])
 	case "rm":
 		if len(rest) != 1 {
 			return fmt.Errorf("rm requires exactly one status name")
 		}
-		return repo.RemoveStatus(rest[0])
+		if err := repo.RemoveStatus(rest[0]); err != nil {
+			return err
+		}
+		return commitChange(repo, cOpts, "gitrack: config status rm "+rest[0])
 	default:
 		return fmt.Errorf("unknown config status verb %q\n%s", verb, configStatusUsage)
 	}
@@ -292,6 +355,10 @@ func configStatusAdd(repo *core.Repo, args []string) error {
 }
 
 func cmdCreate(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	var kind string
 	var title []string
 	for i := 0; i < len(args); i++ {
@@ -318,6 +385,10 @@ func cmdCreate(args []string) error {
 		return err
 	}
 	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	slug, _ := repo.GetField(id, "slug")
+	if err := commitChange(repo, cOpts, "gitrack: create "+slug); err != nil {
 		return err
 	}
 	fmt.Println(id)
@@ -425,6 +496,10 @@ func cmdList(args []string) error {
 }
 
 func cmdUpdate(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) == 0 {
 		return fmt.Errorf("update requires a track reference")
 	}
@@ -472,6 +547,10 @@ func cmdUpdate(args []string) error {
 		}
 	}
 	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	slug, _ := repo.GetField(id, "slug")
+	if err := commitChange(repo, cOpts, "gitrack: update "+slug); err != nil {
 		return err
 	}
 	fmt.Printf("updated %s\n", id)
@@ -546,6 +625,10 @@ func printJSON(v *core.Value) error {
 }
 
 func cmdSet(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) != 2 {
 		return fmt.Errorf("set requires <ref>.<key> <value>")
 	}
@@ -557,6 +640,9 @@ func cmdSet(args []string) error {
 		return err
 	}
 	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	if err := commitChange(repo, cOpts, "gitrack: set "+args[0]); err != nil {
 		return err
 	}
 	fmt.Printf("set %s\n", args[0])
@@ -591,6 +677,10 @@ func cmdSearch(args []string) error {
 }
 
 func cmdClose(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) == 0 {
 		return fmt.Errorf("close requires a track reference")
 	}
@@ -629,11 +719,19 @@ func cmdClose(args []string) error {
 	if err := rebuildCache(repo); err != nil {
 		return err
 	}
+	slug, _ := repo.GetField(id, "slug")
+	if err := commitChange(repo, cOpts, "gitrack: close "+slug); err != nil {
+		return err
+	}
 	fmt.Printf("closed %s\n", id)
 	return nil
 }
 
 func cmdReopen(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) != 1 {
 		return fmt.Errorf("reopen requires exactly one track reference")
 	}
@@ -651,11 +749,19 @@ func cmdReopen(args []string) error {
 	if err := rebuildCache(repo); err != nil {
 		return err
 	}
+	slug, _ := repo.GetField(id, "slug")
+	if err := commitChange(repo, cOpts, "gitrack: reopen "+slug); err != nil {
+		return err
+	}
 	fmt.Printf("reopened %s\n", id)
 	return nil
 }
 
 func cmdComment(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) == 0 {
 		return fmt.Errorf("comment requires a track reference")
 	}
@@ -728,6 +834,9 @@ func cmdComment(args []string) error {
 	if err := rebuildCache(repo); err != nil {
 		return err
 	}
+	if err := commitChange(repo, cOpts, "gitrack: comment on "+id[:8]); err != nil {
+		return err
+	}
 	fmt.Printf("added comment %s\n", cid)
 	return nil
 }
@@ -791,6 +900,10 @@ func firstNonEmpty(vals ...string) string {
 // cmdLink handles the relation-named verbs (depends-on/child-of/related/
 // duplicate-of), all routed through core.Link. rel is the command name.
 func cmdLink(rel string, args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) != 2 {
 		return fmt.Errorf("%s requires <ref> <target>", rel)
 	}
@@ -812,11 +925,18 @@ func cmdLink(rel string, args []string) error {
 	if err := rebuildCache(repo); err != nil {
 		return err
 	}
+	if err := commitChange(repo, cOpts, fmt.Sprintf("gitrack: %s %s -> %s", rel, id[:8], target[:8])); err != nil {
+		return err
+	}
 	fmt.Printf("%s: %s -> %s\n", rel, id[:8], target[:8])
 	return nil
 }
 
 func cmdUnlink(args []string) error {
+	args, cOpts, err := extractCommitFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) != 3 {
 		return fmt.Errorf("unlink requires <ref> <rel> <target>")
 	}
@@ -840,6 +960,9 @@ func cmdUnlink(args []string) error {
 		return err
 	}
 	if err := rebuildCache(repo); err != nil {
+		return err
+	}
+	if err := commitChange(repo, cOpts, fmt.Sprintf("gitrack: unlink %s %s -> %s", rel, id[:8], target[:8])); err != nil {
 		return err
 	}
 	fmt.Printf("unlinked %s: %s -> %s\n", rel, id[:8], target[:8])
