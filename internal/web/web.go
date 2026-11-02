@@ -57,12 +57,19 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 	}
 	n := 0
 	for _, t := range tracks {
-		if err := writeTrack(outDir, t); err != nil {
+		if err := writeTrack(outDir, repo, t); err != nil {
 			return 0, err
 		}
 		n++
 	}
 	return n, nil
+}
+
+// trackView is the data for the track page: the track plus its description with
+// #refs autolinked (ADR-0030).
+type trackView struct {
+	Track    *core.Track
+	DescHTML template.HTML
 }
 
 // render wraps body in the base layout and writes relPath under outDir.

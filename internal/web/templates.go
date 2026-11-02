@@ -48,18 +48,18 @@ var indexBodyTmpl = template.Must(template.New("index").Funcs(tmplFuncs).Parse(`
 // trackBodyTmpl renders one track. Pure HTML.
 var trackBodyTmpl = template.Must(template.New("track").Funcs(tmplFuncs).Parse(`
 <p><a href="../index.html">&larr; all tracks</a></p>
-<h1>{{.Title}}</h1>
+<h1>{{.Track.Title}}</h1>
 <dl>
-<dt>id</dt><dd><code>{{.ID}}</code></dd>
-<dt>slug</dt><dd>{{.Slug}}</dd>
-<dt>kind</dt><dd>{{.Kind}}</dd>
-<dt>state</dt><dd>{{.State}}</dd>
-<dt>status</dt><dd>{{.Status}}</dd>
+<dt>id</dt><dd><code>{{.Track.ID}}</code></dd>
+<dt>slug</dt><dd>{{.Track.Slug}}</dd>
+<dt>kind</dt><dd>{{.Track.Kind}}</dd>
+<dt>state</dt><dd>{{.Track.State}}</dd>
+<dt>status</dt><dd>{{.Track.Status}}</dd>
 </dl>
-{{range $rel, $targets := .Relations}}<p><b>{{$rel}}:</b>
+{{range $rel, $targets := .Track.Relations}}<p><b>{{$rel}}:</b>
 {{range $i, $t := $targets}}{{if $i}}, {{end}}<a href="{{$t}}.html"><code>{{short $t}}</code></a>{{end}}</p>
 {{end}}
-{{if .Description}}<h2>Description</h2><pre>{{.Description}}</pre>{{end}}`))
+{{if .Track.Description}}<h2>Description</h2><pre>{{.DescHTML}}</pre>{{end}}`))
 
 // boardBodyTmpl renders the Ready/Blocked board (offline-complete, pure HTML)
 // plus the dependency digraph as a PROGRESSIVE ENHANCEMENT: Mermaid via CDN

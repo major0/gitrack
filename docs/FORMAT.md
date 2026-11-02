@@ -352,6 +352,12 @@ or the listing (ADR-0022).
   lifecycle (ADR-0019) keeps a single validated path. `update` remains the
   human-friendly, invariant-aware multi-field editor.
 
+In rendered output (the `web` generator), a `#<ref>` in a description — a slug,
+short-uuid, or full uuid — is **autolinked** to that track's page when it
+resolves to an existing track (ADR-0030); a non-resolving `#` stays plain text.
+Links are relative, so they work offline and from a moved site. Comment bodies
+use the same autolinker when rendered.
+
 ## 9. Derived views (the "dumb code" contract)
 
 Authored data is read directly; derived data is computed, never stored

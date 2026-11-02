@@ -25,12 +25,17 @@ func writeIndex(outDir string, tracks []*core.Track) error {
 	return render(outDir, "index.html", pageData{Title: "gitrack", Root: "", Body: body})
 }
 
-func writeTrack(outDir string, t *core.Track) error {
-	body, err := renderBody(trackBodyTmpl, t)
+func writeTrack(outDir string, repo *core.Repo, t *core.Track) error {
+	// Track pages live in track/<id>.html, one level below root, so refs link
+	// back up via "../" (ADR-0030).
+	view := trackView{
+		Track:    t,
+		DescHTML: autolink(repo, "../", t.Description),
+	}
+	body, err := renderBody(trackBodyTmpl, view)
 	if err != nil {
 		return err
 	}
-	// track pages live in track/<id>.html, one level below root.
 	return render(outDir, "track/"+t.ID+".html",
 		pageData{Title: t.Title, Root: "../", Body: body})
 }
