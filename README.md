@@ -7,6 +7,12 @@ Fix a bug on a topic branch, and merging that branch brings the code change and
 the tracker update together — one history, one operation. No separate service,
 no separate ref namespace, fully usable offline.
 
+The goal is a tracker with **no hosted service** — sync through any git remote
+(shared drive, S3 bucket, drop-box, ssh, IPFS) and serve the views as **static
+content** from a dumb host or straight off disk. No server to own, patch, or
+trust; a far smaller attack surface; and less energy than an always-on hosted
+app. See [`docs/VISION.md`](docs/VISION.md) and ADR-0029.
+
 This is a net-new project inspired by the ideas in the original shell-era
 gitrack — now archived at
 [major0/gitrack-old](https://github.com/major0/gitrack-old) — and by the
@@ -51,14 +57,17 @@ alone. The man page is generated from the CLI's own command data
 - A Go CLI shipped as `git-track` on `PATH`, invoked as `git track` by git's
   native subcommand dispatch (ADR-0016), for creating and updating tracks and
   viewing the tracker.
-- A statically rendered web view of the tracker (Hugo-content generator).
-- A statically rendered issues view.
+- A statically rendered web view and issues view — self-contained output that
+  deploys to any dumb host (S3, shared drive, Pages, IPFS) or opens as `file://`,
+  with no runtime server (ADR-0029).
 - GitHub-style autolinked references across the web and issue views.
-- Project boards and roadmaps, including a digraph of *unblocked work* computed
-  from `depends-on` relationships and object state.
+- Project boards and roadmaps with a digraph of *unblocked work* — already built:
+  `git track board` (text, `--mermaid`, `--dot`) and the `/board` page in
+  `git track serve` (local preview).
 
 ## Documentation
 
+- [`docs/VISION.md`](docs/VISION.md) — the why: a tracker with no hosted service.
 - [`docs/FORMAT.md`](docs/FORMAT.md) — the authoritative on-disk format spec.
 - [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) — survey of prior trackers and the
   lessons taken from each.
