@@ -26,6 +26,13 @@ Grounding decisions:
    is intended (proven empirically — see ADR-0003).
 5. **Multi-value is a directory.** Appends by different people are different
    files and merge as a clean union.
+6. **Config is guardrails, not enforcement (ADR-0026).** The tree is openly
+   editable (`cat`/`mkdir`/your editor) and merges happen outside the CLI, so
+   `config/` (statuses, kinds, workflows) describes *intended* structure and
+   keeps the CLI's well-behaved path consistent — it cannot constrain what the
+   tree contains. `git track fsck` is the reconciler: it reports where
+   authoritative data diverges from the guardrails as advisory warnings and
+   never rewrites an authored field to match config.
 
 ## 2. The key/value rule (the whole model in one sentence)
 
@@ -45,7 +52,8 @@ Everything below is an application of that one rule.
 │   ├── states                   # allowed states, one per line
 │   └── workflow/<kind>          # optional per-kind workflow (see §7)
 ├── cache/                       # DERIVED, git-ignored, local, rebuildable (§4.1)
-│   ├── state/<state>/<uuid>     #   index: tracks by state
+│   ├── state/<state>/<uuid>     #   index: tracks by state (open/closed)
+│   ├── status/<status>/<uuid>   #   index: tracks by status (ADR-0019)
 │   ├── type/<kind>/<uuid>       #   index: tracks by kind
 │   └── refs-in/<uuid>/<rel>/<referrer-uuid>   # backref index
 └── <uuid>/                      # one directory per track — AUTHORITATIVE
@@ -126,8 +134,9 @@ rebuildable, never committed, never merged. It provides fast entrypoints:
 
 - `cache/refs-in/<uuid>/<rel>/<referrer-uuid>` — who points at this track
   (reverse of the forward links; the basis for blocked/rollup queries).
-- `cache/state/<state>/<uuid>` — members currently in `<state>`.
-- `cache/type/<kind>/<uuid>`   — members of `<kind>`.
+- `cache/state/<state>/<uuid>`  — members currently in `<state>` (open/closed).
+- `cache/status/<status>/<uuid>` — members currently in `<status>` (ADR-0019).
+- `cache/type/<kind>/<uuid>`    — members of `<kind>`.
 - future indexes live here too; the cache has no fixed schema.
 
 Properties (all from ADR-0014):
@@ -153,21 +162,31 @@ unresolvable cross-repo refs (§8.1).
 ## 5. Comments
 
 `comments/<uuid>.md` — one file per comment, append-only directory (concurrent
-comments merge cleanly). YAML front matter carries threading and authorship:
+comments merge cleanly). `<uuid>` is a UUIDv7, so comments minted offline on
+different branches never collide and the id is stable across edits (ADR-0023). A
+content SHA was rejected: editing a comment would change its id and break
+`reply-to` references.
+
+A comment is **pure Markdown body**. It stores no author and no date — git
+records both on the commit that added the file, and they are **derived**:
+
+- author = `git log -1 --format='%an <%ae>' -- comments/<uuid>.md`
+- created = `git log --diff-filter=A --format='%aI' -- comments/<uuid>.md`
+
+The only metadata a comment may carry is **`reply-to`** (the parent comment's
+UUID, for threading) — authored relationship data git cannot derive. A reply
+carries a minimal front-matter block with only that key; a top-level comment has
+no front matter at all:
 
 ```markdown
 ---
-id: 0192f1b0-....                 # this comment's UUID
-author: Mark Ferrell <mark@example.com>
-created: 2026-11-02T16:45:00Z
-reply-to: 0192f1af-....           # optional: parent comment UUID for threading
+reply-to: 0192f1af-....           # only on a reply; parent comment UUID
 ---
 The comment body in Markdown.
 ```
 
-`reply-to` gives threaded ordering without a mutable index: the thread tree is
-reconstructed by reading each comment's front matter. Absence of `reply-to`
-means a top-level comment.
+The thread tree is reconstructed from each comment's `reply-to`; absence means a
+top-level comment. `get <ref>.comments` lists bare comment UUIDs (ADR-0022).
 
 ## 6. Attachments
 
@@ -192,27 +211,42 @@ rules merge with the code.
 
 ```
 .gitrack/config/
-├── kinds                 # allowed kinds, one per line (project, epic, issue, bug, task, note)
-├── states                # allowed states, one per line
-├── states.closed         # subset of states that count as "closed", one per line
-└── workflow/
-    └── <kind>            # optional: allowed state transitions for this kind,
-                          #   one "from -> to" per line; absent = unrestricted
+├── kinds                 # allowed kinds, one per line (cosmetic, ADR-0006)
+└── statuses/             # one file per user-defined status (ADR-0019)
+    └── <status>          #   that status's allowed next statuses, one per line
 ```
 
-Per-kind workflow example, `.gitrack/config/workflow/bug`:
+### State and status: two axes (ADR-0019)
+
+A track has two single-valued lifecycle fields:
+
+- **`state`** — fixed, never customizable: `open` or `closed`. A track is closed
+  iff `state == closed`.
+- **`status`** — the customizable workflow position. Three statuses are **built
+  in and always valid**: `new`, `reopened`, `done`. Every other status is
+  user-defined as a file `config/statuses/<name>` whose lines are that status's
+  **allowed next statuses**; the built-ins may also declare theirs. A status with
+  no file, or an empty one, permits any transition — enforcement is opt-in.
+
+The two axes are kept coherent by the lifecycle verbs:
+
+- `git track create` -> `state=open`, `status=new`.
+- `git track update -s <status>` -> moves `status` through the workflow (state
+  unchanged); a disallowed next status is rejected.
+- `git track close [--status=<s>]` -> `state=closed`, `status=<s>` or `done`.
+- `git track reopen` -> `state=open`, `status=reopened`.
+
+Example `config/statuses/in-progress`:
 
 ```
-new -> triaged
-new -> wontfix
-triaged -> in-progress
-in-progress -> in-review
-in-review -> done
+in-review
+done
 ```
 
-A kind with no workflow file has unrestricted transitions. "Supported tracks,"
-"states per track type," and "workflows per track type" are all expressed here
-as plain files.
+Workflows are edited with `git track config status` (ADR-0025), not by hand:
+`config status add <name> [--next a,b,c]`, `config status set-next <name>
+[next...]`, `config status list`, `config status rm <name>`. Transition targets
+are validated to be existing statuses; the three built-ins cannot be removed.
 
 ## 8. Task lists in descriptions (ADR-0008)
 
@@ -253,6 +287,33 @@ slug may not be pure hex — enforced at mint). From a code commit, the
 Cross-repo refs resolve against the named remote when reachable; offline, the
 renderer shows the URL plus short id, and `fsck` (§4.1) refreshes them.
 
+## 8.2 Accessor paths — `get` / `set` (ADR-0021)
+
+Because a field is a file and a multi-value attribute is a directory, a track is
+addressable by a dotted path `<ref>.<key>[.<key>...]` that maps straight onto
+the tree. The first `.` separates the object reference (uuid/short/slug — none
+contain `.`) from the key path; further `.` segments descend.
+
+- `get [--json] <ref>` — the whole track (object).
+- `get <ref>.<field>` — a single-valued field (scalar), e.g. `<ref>.status`.
+- `get <ref>.<attr>` — a multi-value attribute lists its entries as **bare ids**,
+  e.g. `<ref>.comments`, `<ref>.labels`, `<ref>.depends-on`. Any storage suffix
+  (see below) is stripped from the listing.
+- `get <ref>.<attr>.<id>` — a nested entry by bare id. If the attribute declares
+  a storage suffix, it is appended to find the file; resolution never strips an
+  arbitrary extension (ADR-0022). So `comments.<uuid>` reads
+  `comments/<uuid>.md` because `.md` is the comments attribute's declared suffix.
+
+Storage suffix: a multi-value attribute may store its entries with a fixed
+suffix marking the on-disk file type — `comments` entries are `<id>.md`
+(Markdown). The suffix is a storage detail, never part of the id, the command,
+or the listing (ADR-0022).
+- `set <ref>.<key> <value>` — writes a **free-form** field only (`title`,
+  `description`, `kind`, ...). The **governed** fields `state` and `status` are
+  refused with a redirect to `close`/`reopen` and `update --status`, so the
+  lifecycle (ADR-0019) keeps a single validated path. `update` remains the
+  human-friendly, invariant-aware multi-field editor.
+
 ## 9. Derived views (the "dumb code" contract)
 
 Authored data is read directly; derived data is computed, never stored
@@ -260,7 +321,7 @@ Authored data is read directly; derived data is computed, never stored
 
 - **Field value:** read the file. Done.
 - **Multi-value attribute:** list the directory. Done.
-- **Closed?** read `state`, test membership in `config/states.closed`.
+- **Closed?** read `state`; closed iff `state == closed` (ADR-0019).
 - **Unblocked?** every target in `depends-on/` is closed, AND every child
   (track whose `child-of/` points here) is closed (ADR-0005 directions).
 - **Comment thread:** read each `comments/*.md` front matter, order by `reply-to`.
@@ -276,6 +337,16 @@ No fold, no replay, no authoritative cache. The git-ignored `.gitrack/cache/`
 (§4.1) memoizes these derived results for speed and is always regenerable by
 `gitrack fsck`; it is never the source of truth.
 
+## 9.1 Live preview — `git track serve` (ADR-0024)
+
+`git track serve` starts a **loopback-only** HTTP server on a random port
+(default `127.0.0.1:0`) and prints its URL, in the spirit of `hugo server`. It
+renders the **current tracker state live** — each request reads the authoritative
+tree, so a track created or changed after startup appears on the next request
+with no restart. It is read-only (no mutation endpoint) and refuses any
+non-loopback bind. The Git-Web source-code view and live-reload push are planned
+follow-ons.
+
 ## 10. Publishing (per-commit static site)
 
 The tracker is meant to replace a hosted issue tracker, so it ships a CI
@@ -286,12 +357,16 @@ see `docs/adr/0010-publishing.md` and the web/issues generators (later work).
 
 ## 11. Open questions to resolve through scenarios
 
-- Should `state` and `status` be one field or two (coarse open/closed vs
-  fine-grained workflow step)? gitrack v1 had both.
+- **Resolved (ADR-0019):** two axes — a fixed `state` (`open`/`closed`) changed
+  only by `new`/`close`/`reopen`, and a customizable `status` workflow (built-ins
+  `new`/`reopened`/`done` plus user-defined statuses with per-status transitions)
+  moved by `update -s`.
 - Should `created`/author of the track itself live in files, or is the first
   commit touching the track dir authoritative? (git already records who/when.)
 - History of a single-value field: currently only the latest value is kept
   (git log recovers history). Is that sufficient, or does any field need an
   in-tree audit trail like comments?
+- Interactive/TUI mode for `create`/`update` (gh-style prompts) — specified as a
+  goal; not yet designed or built (the non-interactive verbs come first).
 
-These are deliberately left open; we will settle them by working scenarios.
+The remaining items are left open; we will settle them by working scenarios.

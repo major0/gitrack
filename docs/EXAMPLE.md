@@ -13,22 +13,23 @@ There is a standalone bug, marked a duplicate of one issue.
 .gitrack/
 ├── config/
 │   ├── kinds                     # project\nepic\nissue\nbug\ntask\nnote
-│   ├── states                    # new\ntriaged\nin-progress\nin-review\ndone\nwontfix\nduplicate
-│   ├── states.closed             # done\nwontfix\nduplicate
-│   └── workflow/
-│       └── bug                   # new -> triaged \n triaged -> in-progress ...
+│   └── statuses/                 # per-status transitions (ADR-0019)
+│       ├── new                   # triaged\nin-progress\ndone
+│       └── in-progress           # in-review\ndone
 │
 ├── 0192-epic-auth/               # the epic
 │   ├── kind                      # "epic"
 │   ├── title                     # "Ship auth v2"
 │   ├── description               # markdown body
-│   ├── state                     # "in-progress"
+│   ├── state                     # "open"        (fixed axis, ADR-0019)
+│   ├── status                    # "in-progress" (workflow axis)
 │   └── created                   # 2026-11-02T10:00:00Z
 │
 ├── 0192-issue-login/             # child issue 1
 │   ├── kind                      # "issue"
 │   ├── title                     # "New login flow"
-│   ├── state                     # "done"
+│   ├── state                     # "closed"
+│   ├── status                    # "done"
 │   ├── child-of/
 │   │   └── 0192-epic-auth        # belongs to the epic
 │   └── comments/
@@ -38,7 +39,8 @@ There is a standalone bug, marked a duplicate of one issue.
 │   ├── kind                      # "task" (default; kind is cosmetic, ADR-0006)
 │   ├── slug                      # "session-refresh" (typeable handle, ADR-0009)
 │   ├── title                     # "Session refresh"
-│   ├── state                     # "in-progress"
+│   ├── state                     # "open"
+│   ├── status                    # "in-progress"
 │   ├── description               # contains a task list (see below)
 │   ├── child-of/
 │   │   └── 0192-epic-auth
@@ -48,7 +50,8 @@ There is a standalone bug, marked a duplicate of one issue.
 └── 0192-bug-token/               # a standalone bug
     ├── kind                      # "bug"
     ├── title                     # "Token leak in logs"
-    ├── state                     # "duplicate"
+    ├── state                     # "closed"
+    ├── status                    # "duplicate"
     └── duplicate-of/
         └── 0192-issue-session
 ```
@@ -67,7 +70,7 @@ Edge directions in the blocking graph (arrow points at the waiter):
 Now the queries:
 
 - **Is `issue-session` unblocked?** Its only `depends-on` target is
-  `issue-login`, whose `state` = `done` (closed ✓). It has no children. So
+  `issue-login`, whose `state` = `closed` (status `done` ✓). It has no children. So
   `issue-session` **is unblocked** and actionable. Its parent epic being open is
   irrelevant to the child — the corrected direction (ADR-0005) gets this right.
 - **Is `epic-auth` unblocked / closeable?** Its children are `issue-login`
@@ -91,7 +94,7 @@ dependency-backed item:
 ```
 
 The second item references `issue-login` by its slug `new-login-flow`. Because
-`issue-login/state` = `done` (closed), the **rendered** page shows that item as
+`issue-login/state` = `closed`, the **rendered** page shows that item as
 `- [x]`, even though the stored bytes stay `- [ ]`. Closing `issue-login` wrote
 only its own `state` file — the checklist updates purely at render time, with no
 write into `issue-session`. Creating that item also materialized the
