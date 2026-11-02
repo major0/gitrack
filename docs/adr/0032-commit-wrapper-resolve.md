@@ -1,7 +1,9 @@
 # ADR-0032: `git track commit --resolve` wraps git commit and closes the track
 
 ## Status
-accepted
+superseded by ADR-0033 (the commit message's own directives drive the updates;
+--resolve/<id> become sugar for a `closes #<id>` directive. The commit-wrapper
+behavior and the no-passive-auto-close stance are retained.)
 
 ## Context
 ADR-0031 deliberately does NOT auto-close a track when a commit message says

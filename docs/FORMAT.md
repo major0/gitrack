@@ -358,14 +358,19 @@ resolves to an existing track (ADR-0030); a non-resolving `#` stays plain text.
 Links are relative, so they work offline and from a moved site. Comment bodies
 use the same autolinker when rendered.
 
-`git track commit -m <msg>` wraps `git commit` of the **currently staged files**;
-`--resolve <id>` (repeatable) additionally **closes** each named track (status
-`done`, or `--status <s>`) and bundles that close into the *same* revision, with
-a `closes #<slug>` line appended to the message (ADR-0032). So the code fix and
-the track close ship as one commit whose message reads `closes #<slug>` — the
-explicit, author-driven form of close-on-commit. Passively observing a `closes`
-commit never auto-closes (ADR-0031); only `git track close` and `commit
---resolve` change state.
+`git track commit [<id>...] [-m <msg>] [--status <s>] [-- <file>...]` processes
+the **commit message's own directives** and bundles the result as one revision
+(ADR-0033). gitrack obtains the message (from `-m`, else `$EDITOR`), parses every
+`<verb> #<handle>` in it — `closes`/`resolves`/`fixes` → **close the track**,
+`relates to`/`related to` → relate (informational), bare `#<id>` → mention —
+applies the closing directives, stages the tracker changes, and commits. With
+`-- <file>...` the commit is scoped to those files plus `.gitrack/`; with no
+pathspec it commits the staged index. A positional `<id>` (or `--resolve <id>`)
+is sugar that injects a `closes #<slug>` directive; `--status` sets the closing
+status. So writing `closes #login` in the message and committing through gitrack
+closes the track in the same commit as the code. Passively observing a `closes`
+commit never auto-closes (ADR-0031); state changes only via `git track close` or
+this command.
 
 A track's **mentions** are derived from git history (ADR-0031, never stored):
 commits whose message references the track via `#<handle>` — `closes #<id>` /

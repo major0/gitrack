@@ -43,7 +43,7 @@ var commands = []command{
 	{"close", "<ref> [--status=s]", "close a track: state=closed, status=s (default done)"},
 	{"reopen", "<ref>", "reopen a track: state=open, status=reopened"},
 	{"comment", "<ref> [-m msg] [--reply-to=<cid>]", "add a Markdown comment"},
-	{"commit", "-m <msg> [--resolve <id>] [--status s]", "commit staged files, optionally closing tracks"},
+	{"commit", "[<id>...] [-m msg] [--status s] [-- <file>...]", "commit; apply the message's closes/relates #ref directives"},
 	{"depends-on", "<ref> <target>", "mark <ref> as blocked by <target>"},
 	{"child-of", "<ref> <parent>", "place <ref> under <parent> (one parent)"},
 	{"related", "<ref> <target>", "soft link, no scheduling effect"},
@@ -773,13 +773,23 @@ func cmdReopen(args []string) error {
 
 // cmdCommit wraps `git commit` of the staged index and optionally closes tracks
 // (--resolve), bundling the close(s) into the same revision (ADR-0032).
+// cmdCommit (ADR-0033) obtains a commit message, applies the ref directives it
+// contains (closes/resolves/fixes -> close the track), amends the tracker
+// changes into the commit, and commits — scoped to a -- <file> pathspec if
+// given, else the staged index. Positional <id> args and --resolve are sugar for
+// a `closes #<id>` directive. --status sets the closing status.
 func cmdCommit(args []string) error {
 	var message, status string
-	var resolve []string
+	var ids, pathspec []string
+	inPathspec := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		if inPathspec {
+			pathspec = append(pathspec, arg)
+			continue
+		}
 		if v, ok := strings.CutPrefix(arg, "--resolve="); ok {
-			resolve = append(resolve, v)
+			ids = append(ids, v)
 			continue
 		}
 		if v, ok := strings.CutPrefix(arg, "--status="); ok {
@@ -787,6 +797,8 @@ func cmdCommit(args []string) error {
 			continue
 		}
 		switch arg {
+		case "--":
+			inPathspec = true
 		case "-m", "--message":
 			if i+1 >= len(args) {
 				return fmt.Errorf("-m requires a value")
@@ -798,7 +810,7 @@ func cmdCommit(args []string) error {
 				return fmt.Errorf("--resolve requires a track id")
 			}
 			i++
-			resolve = append(resolve, args[i])
+			ids = append(ids, args[i])
 		case "--status":
 			if i+1 >= len(args) {
 				return fmt.Errorf("--status requires a value")
@@ -806,52 +818,87 @@ func cmdCommit(args []string) error {
 			i++
 			status = args[i]
 		default:
-			return fmt.Errorf("unknown commit option %q", arg)
+			if strings.HasPrefix(arg, "-") {
+				return fmt.Errorf("unknown commit option %q", arg)
+			}
+			ids = append(ids, arg) // positional <id>: sugar for `closes #<id>`
 		}
-	}
-	if message == "" {
-		return fmt.Errorf("commit requires -m <message>")
 	}
 	repo, err := openRepo()
 	if err != nil {
 		return err
 	}
-	// Close each resolved track and collect its slug for the commit message.
-	var closedSlugs []string
-	for _, ref := range resolve {
-		id, err := repo.Resolve(ref)
-		if err != nil {
-			return fmt.Errorf("--resolve %q: %w", ref, err)
+
+	// Obtain the message: -m, else $EDITOR so gitrack can read what was written.
+	if message == "" {
+		seed := ""
+		for _, id := range ids {
+			if resolved, e := repo.Resolve(id); e == nil {
+				if slug, _ := repo.GetField(resolved, "slug"); slug != "" {
+					seed += "closes #" + slug + "\n"
+				}
+			}
 		}
-		if err := repo.Close(id, status); err != nil {
+		message, err = editInEditor(seed)
+		if err != nil {
 			return err
 		}
-		slug, _ := repo.GetField(id, "slug")
-		if slug == "" {
-			slug = id[:8]
+	} else {
+		// positional/--resolve ids are sugar: fold them into the message as
+		// `closes #<slug>` directives so the message is the single record.
+		for _, id := range ids {
+			if resolved, e := repo.Resolve(id); e == nil {
+				if slug, _ := repo.GetField(resolved, "slug"); slug != "" {
+					message += "\n\ncloses #" + slug
+				}
+			}
 		}
-		closedSlugs = append(closedSlugs, slug)
 	}
-	if len(resolve) > 0 {
+	if strings.TrimSpace(message) == "" {
+		return fmt.Errorf("empty commit message, aborting")
+	}
+
+	// Parse directives from the final message and apply the closing ones.
+	var closed []string
+	for _, d := range core.ParseDirectives(message) {
+		id, e := repo.Resolve(d.Handle)
+		if e != nil {
+			continue // not a resolvable track ref; leave it alone
+		}
+		if d.Verb == "closes" {
+			if err := repo.Close(id, status); err != nil {
+				return err
+			}
+			closed = append(closed, d.Handle)
+		}
+		// relate/mention directives are informational (surfaced via mentions,
+		// ADR-0031); no state change in this slice.
+	}
+
+	// Amend the tracker changes into the commit, then commit.
+	if len(closed) > 0 {
 		if err := rebuildCache(repo); err != nil {
 			return err
 		}
-		// stage the tracker change so it joins the staged files in one revision
+	}
+	if len(pathspec) > 0 {
+		// scoped commit: the named files plus the tracker path
+		paths := append(pathspec, core.Dir)
+		if err := repo.Commit(message, paths...); err != nil {
+			return err
+		}
+	} else {
 		if err := repo.StageTracker(); err != nil {
 			return err
 		}
-		// append `closes #<slug>` lines so the mention (ADR-0031) is recorded
-		for _, slug := range closedSlugs {
-			message += "\n\ncloses #" + slug
+		if err := repo.CommitStaged(message); err != nil {
+			return err
 		}
 	}
-	if err := repo.CommitStaged(message); err != nil {
-		return err
-	}
-	if len(closedSlugs) > 0 {
-		fmt.Printf("committed; closed %s\n", strings.Join(closedSlugs, ", "))
+	if len(closed) > 0 {
+		fmt.Printf("committed; closed %s\n", strings.Join(closed, ", "))
 	} else {
-		fmt.Println("committed staged changes")
+		fmt.Println("committed")
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -59,24 +60,37 @@ func (r *Repo) handles(id string) ([]string, error) {
 func classifyMention(message, handle string) string {
 	msg := strings.ToLower(message)
 	ref := "#" + strings.ToLower(handle)
-	idx := strings.Index(msg, ref)
-	if idx < 0 {
-		return ""
+	// A handle can appear multiple times with different verbs; return the
+	// strongest (closes > relates > mentions) across all occurrences.
+	rank := map[string]int{"": -1, "mentions": 0, "relates": 1, "closes": 2}
+	best := ""
+	from := 0
+	for {
+		rel := strings.Index(msg[from:], ref)
+		if rel < 0 {
+			break
+		}
+		idx := from + rel
+		before := strings.TrimRight(msg[:idx], " \t")
+		var verb string
+		switch {
+		case hasSuffixWord(before, "closes"), hasSuffixWord(before, "close"),
+			hasSuffixWord(before, "resolves"), hasSuffixWord(before, "resolve"),
+			hasSuffixWord(before, "fixes"), hasSuffixWord(before, "fix"),
+			hasSuffixWord(before, "fixed"):
+			verb = "closes"
+		case hasSuffixWord(before, "relates to"), hasSuffixWord(before, "related to"),
+			hasSuffixWord(before, "relates"), hasSuffixWord(before, "related"):
+			verb = "relates"
+		default:
+			verb = "mentions"
+		}
+		if rank[verb] > rank[best] {
+			best = verb
+		}
+		from = idx + len(ref)
 	}
-	// Look at the words immediately before the ref.
-	before := strings.TrimRight(msg[:idx], " \t")
-	switch {
-	case hasSuffixWord(before, "closes"), hasSuffixWord(before, "close"),
-		hasSuffixWord(before, "resolves"), hasSuffixWord(before, "resolve"),
-		hasSuffixWord(before, "fixes"), hasSuffixWord(before, "fix"),
-		hasSuffixWord(before, "fixed"):
-		return "closes"
-	case hasSuffixWord(before, "relates to"), hasSuffixWord(before, "related to"),
-		hasSuffixWord(before, "relates"), hasSuffixWord(before, "related"):
-		return "relates"
-	default:
-		return "mentions"
-	}
+	return best
 }
 
 // hasSuffixWord reports whether s ends with word on a word boundary.
@@ -162,4 +176,42 @@ func (r *Repo) CommitStaged(message string) error {
 		return fmt.Errorf("git commit: %w: %s", err, out)
 	}
 	return nil
+}
+
+// Directive is a ref reference found in a commit message (ADR-0033): a handle
+// and the verb that governs it.
+type Directive struct {
+	Handle string // the #<handle> text (without the leading #)
+	Verb   string // "closes" | "relates" | "mentions"
+}
+
+// directiveToken matches a #<handle> in a message. Handle charset mirrors the
+// reference syntax (ADR-0011): [0-9a-z][0-9a-z-]*.
+var directiveToken = regexp.MustCompile(`#([0-9a-z][0-9a-z-]*)`)
+
+// ParseDirectives finds every #<handle> in a commit message and classifies its
+// verb (ADR-0033), reusing the mention classifier per occurrence. Duplicate
+// handles keep the strongest verb seen (closes > relates > mentions).
+func ParseDirectives(message string) []Directive {
+	rank := map[string]int{"mentions": 0, "relates": 1, "closes": 2}
+	best := map[string]string{}
+	var order []string
+	for _, m := range directiveToken.FindAllStringSubmatch(message, -1) {
+		handle := m[1]
+		verb := classifyMention(message, handle)
+		if verb == "" {
+			continue
+		}
+		if cur, ok := best[handle]; !ok {
+			best[handle] = verb
+			order = append(order, handle)
+		} else if rank[verb] > rank[cur] {
+			best[handle] = verb
+		}
+	}
+	out := make([]Directive, 0, len(order))
+	for _, h := range order {
+		out = append(out, Directive{Handle: h, Verb: best[h]})
+	}
+	return out
 }

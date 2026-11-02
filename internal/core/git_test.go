@@ -146,3 +146,32 @@ func TestCommitStagedBundlesIndex(t *testing.T) {
 		t.Error("track should be closed")
 	}
 }
+
+func TestParseDirectives(t *testing.T) {
+	msg := "Implement login\n\ncloses #login-flow\nrelates to #epic-auth\nsee #notes-doc"
+	ds := ParseDirectives(msg)
+	got := map[string]string{}
+	for _, d := range ds {
+		got[d.Handle] = d.Verb
+	}
+	if got["login-flow"] != "closes" {
+		t.Errorf("login-flow verb = %q, want closes", got["login-flow"])
+	}
+	if got["epic-auth"] != "relates" {
+		t.Errorf("epic-auth verb = %q, want relates", got["epic-auth"])
+	}
+	if got["notes-doc"] != "mentions" {
+		t.Errorf("notes-doc verb = %q, want mentions", got["notes-doc"])
+	}
+	// strongest verb wins when a handle appears twice
+	msg2 := "touches #x and then closes #x"
+	for _, d := range ParseDirectives(msg2) {
+		if d.Handle == "x" && d.Verb != "closes" {
+			t.Errorf("x verb = %q, want closes (strongest)", d.Verb)
+		}
+	}
+	// no directives in a plain message
+	if len(ParseDirectives("just a normal message")) != 0 {
+		t.Error("plain message should yield no directives")
+	}
+}
