@@ -3,10 +3,9 @@
 # git history (for the derived referenced-by view), so the checkout is full
 # depth and the build is idempotent.
 #
-# NOTE: `gitrack web --out ./site` is the generator entry point specified by
-# ADR-0010; it is forthcoming. Until it lands, the build step is the single
-# integration point to wire up — the trigger, permissions, and deploy wiring
-# below are complete and correct.
+# The build step runs `git-track web --out ./site` (ADR-0010/0029): a
+# self-contained static site, offline-capable, with no host coupling — so the
+# same output also deploys by file copy or `aws s3 sync` to any dumb host.
 name: gitrack-pages
 
 on:

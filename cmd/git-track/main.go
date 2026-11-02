@@ -15,6 +15,7 @@ import (
 	"github.com/major0/gitrack/internal/cache"
 	"github.com/major0/gitrack/internal/core"
 	"github.com/major0/gitrack/internal/server"
+	"github.com/major0/gitrack/internal/web"
 )
 
 // tagline is the one-line description used in both --help and the man page.
@@ -48,6 +49,7 @@ var commands = []command{
 	{"duplicate-of", "<ref> <target>", "mark <ref> a duplicate of <target>"},
 	{"unlink", "<ref> <rel> <target>", "remove a relationship edge"},
 	{"board", "[--graph|--mermaid|--dot]", "ready/blocked work, or the dependency digraph"},
+	{"web", "--out <dir>", "generate a self-contained static site (offline-capable)"},
 	{"serve", "[--addr 127.0.0.1:0]", "live loopback preview server (random port)"},
 	{"fsck", "[--write]", "verify (or rebuild) the derived cache"},
 }
@@ -137,6 +139,8 @@ func run(args []string) error {
 		return cmdUnlink(rest)
 	case "board":
 		return cmdBoard(rest)
+	case "web":
+		return cmdWeb(rest)
 	case "serve":
 		return cmdServe(rest)
 	case "fsck":
@@ -1040,6 +1044,35 @@ func blockerLabel(byID map[string]core.BoardEntry, id string) string {
 		return id[:8] + " " + e.Title
 	}
 	return id[:8]
+}
+
+func cmdWeb(args []string) error {
+	out := ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--out":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--out requires a directory")
+			}
+			i++
+			out = args[i]
+		default:
+			return fmt.Errorf("unknown web option %q", args[i])
+		}
+	}
+	if out == "" {
+		return fmt.Errorf("web requires --out <dir>")
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	n, err := web.Generate(repo, out)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("generated static site in %s (%d track pages)\n", out, n)
+	return nil
 }
 
 func cmdServe(args []string) error {

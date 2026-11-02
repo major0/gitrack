@@ -387,6 +387,22 @@ via Mermaid, ADR-0027). It is read-only (no mutation endpoint) and refuses any
 non-loopback bind. The Git-Web source-code view and live-reload push are planned
 follow-ons.
 
+## 9.2 Static site — `git track web` (ADR-0029)
+
+`git track web --out <dir>` generates a **self-contained static site** from the
+tracker: an index of tracks, a page per track, and a board page. Per ADR-0029
+the output is offline-capable and host-neutral — inline CSS (no external
+stylesheet), all links relative (works from `file://` or any subpath), and no
+network dependency for core content. The board's dependency digraph is a
+progressive enhancement (Mermaid) sitting above the always-present HTML
+Ready/Blocked lists, so the page stays usable offline.
+
+Because the output is a plain directory with no host coupling, it deploys the
+same way everywhere: `aws s3 sync`, a copy to a shared drive, `rsync`, an IPFS
+add, or the GitHub Pages workflow (ADR-0010) — the decentralized, no-hosted-
+service story (docs/VISION.md). `git track serve` is the live local preview;
+`git track web` is the deployable snapshot.
+
 ## 10. Publishing (per-commit static site)
 
 The tracker is meant to replace a hosted issue tracker, so it ships a CI
