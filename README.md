@@ -60,4 +60,6 @@ preview), and `fsck`. Build with `go build -o git-track ./cmd/git-track`.
 
 ## License
 
-TBD (the original gitrack was GPLv2).
+[MIT](LICENSE). (The original shell-era gitrack was GPLv2; this net-new
+reimplementation is MIT — permissive, close to public domain, and the safer
+choice for agent-assisted development under current copyright law.)
