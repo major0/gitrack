@@ -16,7 +16,10 @@ and invoked as a `git track` subcommand (ADR-0015).
 
 ## Status
 
-Early design. Foundations are specified; implementation follows incrementally.
+Early. The design foundations and on-disk format are specified (`docs/`), and a
+first vertical slice of the Go CLI is implemented: `init`, `new`, `show`,
+`list`, and `fsck` (verify/rebuild the derived cache). Build with
+`go build -o git-track ./cmd/git-track`.
 
 ## Core ideas
 
