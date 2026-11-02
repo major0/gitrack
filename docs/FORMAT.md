@@ -133,6 +133,13 @@ reverse `refs-in/` cache and blocked/unblocked status are derived. `child-of`
 enforces the single-parent convention. `git track show` prints a track's
 blocked/unblocked status computed from these edges.
 
+`git track board` renders the unblocked-work view from these edges + state
+(ADR-0027): open tracks grouped into **Ready** (no open blocker) and **Blocked**
+(with the open blockers that hold them); closed tracks are omitted.
+`board --mermaid` (default graph) and `board --dot` emit the blocking digraph
+(edges point blocker → blocked, ready nodes marked) for rendering on GitHub, in
+the web view, or with Graphviz.
+
 ## 4.1 The derived cache and `fsck` (ADR-0014)
 
 Forward links above are the **source of truth**. Everything that inverts or

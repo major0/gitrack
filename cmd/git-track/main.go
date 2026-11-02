@@ -47,6 +47,7 @@ var commands = []command{
 	{"related", "<ref> <target>", "soft link, no scheduling effect"},
 	{"duplicate-of", "<ref> <target>", "mark <ref> a duplicate of <target>"},
 	{"unlink", "<ref> <rel> <target>", "remove a relationship edge"},
+	{"board", "[--graph|--mermaid|--dot]", "ready/blocked work, or the dependency digraph"},
 	{"serve", "[--addr 127.0.0.1:0]", "live loopback preview server (random port)"},
 	{"fsck", "[--write]", "verify (or rebuild) the derived cache"},
 }
@@ -127,6 +128,8 @@ func run(args []string) error {
 		return cmdLink(cmd, rest)
 	case "unlink":
 		return cmdUnlink(rest)
+	case "board":
+		return cmdBoard(rest)
 	case "serve":
 		return cmdServe(rest)
 	case "fsck":
@@ -822,6 +825,136 @@ func cmdUnlink(args []string) error {
 	}
 	fmt.Printf("unlinked %s: %s -> %s\n", rel, id[:8], target[:8])
 	return nil
+}
+
+func cmdBoard(args []string) error {
+	mode := "text"
+	for _, a := range args {
+		switch a {
+		case "--graph", "--mermaid":
+			mode = "mermaid"
+		case "--dot":
+			mode = "dot"
+		default:
+			return fmt.Errorf("unknown board option %q", a)
+		}
+	}
+	repo, err := openRepo()
+	if err != nil {
+		return err
+	}
+	board, err := repo.ComputeBoard()
+	if err != nil {
+		return err
+	}
+	switch mode {
+	case "mermaid":
+		fmt.Print(renderMermaid(board))
+	case "dot":
+		fmt.Print(renderDot(board))
+	default:
+		printBoardText(board)
+	}
+	return nil
+}
+
+// printBoardText lists open tracks as Ready vs Blocked (ADR-0027). Closed tracks
+// are omitted; a blocked track shows its open blockers.
+func printBoardText(board *core.Board) {
+	byID := map[string]core.BoardEntry{}
+	for _, e := range board.Entries {
+		byID[e.ID] = e
+	}
+	var ready, blocked []core.BoardEntry
+	for _, e := range board.Entries {
+		if !e.Open {
+			continue
+		}
+		if e.Ready() {
+			ready = append(ready, e)
+		} else {
+			blocked = append(blocked, e)
+		}
+	}
+	fmt.Printf("Ready (%d):\n", len(ready))
+	for _, e := range ready {
+		fmt.Printf("  %s  %-11s %s\n", e.ID[:8], e.Status, e.Title)
+	}
+	fmt.Printf("\nBlocked (%d):\n", len(blocked))
+	for _, e := range blocked {
+		labels := make([]string, len(e.OpenBlockers))
+		for i, b := range e.OpenBlockers {
+			labels[i] = blockerLabel(byID, b)
+		}
+		fmt.Printf("  %s  %-11s %s  (waiting on: %s)\n",
+			e.ID[:8], e.Status, e.Title, strings.Join(labels, ", "))
+	}
+}
+
+// blockerLabel renders a blocker as "shortid title" when known.
+func blockerLabel(byID map[string]core.BoardEntry, id string) string {
+	if e, ok := byID[id]; ok {
+		return id[:8] + " " + e.Title
+	}
+	return id[:8]
+}
+
+// renderMermaid emits the blocking digraph as Mermaid (default graph format —
+// renders on GitHub and the web view). Edges point blocker -> blocked; ready
+// (open, unblocked) nodes get a distinct class so the frontier stands out.
+func renderMermaid(board *core.Board) string {
+	var b strings.Builder
+	b.WriteString("```mermaid\ngraph LR\n")
+	for _, e := range board.Entries {
+		node := e.ID[:8]
+		label := node + ": " + e.Title
+		if !e.Open {
+			b.WriteString(fmt.Sprintf("  %s[\"%s\"]:::closed\n", node, mermaidEscape(label)))
+		} else if e.Ready() {
+			b.WriteString(fmt.Sprintf("  %s[\"%s\"]:::ready\n", node, mermaidEscape(label)))
+		} else {
+			b.WriteString(fmt.Sprintf("  %s[\"%s\"]\n", node, mermaidEscape(label)))
+		}
+	}
+	for _, edge := range board.Edges {
+		b.WriteString(fmt.Sprintf("  %s --> %s\n", edge.From[:8], edge.To[:8]))
+	}
+	b.WriteString("  classDef ready fill:#cfc,stroke:#2a2;\n")
+	b.WriteString("  classDef closed fill:#eee,stroke:#999,color:#999;\n")
+	b.WriteString("```\n")
+	return b.String()
+}
+
+func mermaidEscape(s string) string {
+	return strings.ReplaceAll(s, `"`, "'")
+}
+
+// renderDot emits the blocking digraph as Graphviz DOT.
+func renderDot(board *core.Board) string {
+	var b strings.Builder
+	b.WriteString("digraph gitrack {\n  rankdir=LR;\n  node [shape=box];\n")
+	for _, e := range board.Entries {
+		node := e.ID[:8]
+		label := dotEscape(node + ": " + e.Title)
+		switch {
+		case !e.Open:
+			b.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", style=filled, fillcolor=\"#eeeeee\", fontcolor=\"#999999\"];\n", node, label))
+		case e.Ready():
+			b.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", style=filled, fillcolor=\"#ccffcc\"];\n", node, label))
+		default:
+			b.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\"];\n", node, label))
+		}
+	}
+	for _, edge := range board.Edges {
+		b.WriteString(fmt.Sprintf("  \"%s\" -> \"%s\";\n", edge.From[:8], edge.To[:8]))
+	}
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func dotEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `"`, `\"`)
 }
 
 func cmdServe(args []string) error {
