@@ -1,0 +1,66 @@
+.TH GIT-TRACK 1 "2026-11-02" "gitrack" "Git Track Manual"
+.SH NAME
+git-track \- distributed tracker whose state merges with your code
+.SH SYNOPSIS
+.B git track
+.I command
+[\fIargs\fR]
+.SH DESCRIPTION
+Git Track is a distributed issue/task/note tracker whose state lives in the
+git working tree and merges as part of an ordinary \fBgit merge\fR. It installs
+as \fBgit-track\fR on \fBPATH\fR and runs as the \fBgit track\fR subcommand.
+.SH COMMANDS
+.TP
+.B init
+initialize a tracker in the current repository
+.TP
+.B config status ...
+edit status workflows (see 'config status')
+.TP
+.B create [\-k kind] <title>
+create a track, print its id
+.TP
+.B update <ref> [flags]
+change a track's title/status/kind/description
+.TP
+.B get [\-\-json] <ref>[.path]
+read a field, list, or object (e.g. <ref>.comments.<id>)
+.TP
+.B set <ref>.<key> <value>
+write a free\-form field (not state/status)
+.TP
+.B show <ref>
+display a track (ref: id, short id, or slug)
+.TP
+.B list [\-\-state s] [\-s status] [\-k kind]
+list tracks
+.TP
+.B search <query>
+find tracks by text in title/description/slug
+.TP
+.B close <ref> [\-\-status=s]
+close a track: state=closed, status=s (default done)
+.TP
+.B reopen <ref>
+reopen a track: state=open, status=reopened
+.TP
+.B comment <ref> [\-m msg] [\-\-reply\-to=<cid>]
+add a Markdown comment
+.TP
+.B serve [\-\-addr 127.0.0.1:0]
+live loopback preview server (random port)
+.TP
+.B fsck [\-\-write]
+verify (or rebuild) the derived cache
+.SH MODEL
+Every command is a verb. A track has two axes: a fixed state (open|closed) changed only by create/close/reopen, and a customizable status workflow (built\-ins new/reopened/done plus user\-defined statuses in config/statuses/) moved by 'update \-s'. update flags: \-t title | \-s status | \-k kind | \-d description. See docs/FORMAT.md for the on\-disk format.
+.SH FILES
+.TP
+.B .gitrack/
+The tracker tree in the working directory: one directory per track keyed by
+UUID, config under \fB.gitrack/config/\fR, and a git-ignored derived cache
+under \fB.gitrack/cache/\fR. See the on-disk format specification.
+.SH SEE ALSO
+.BR git (1)
+.SH AUTHOR
+Mark Ferrell.

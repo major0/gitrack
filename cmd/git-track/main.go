@@ -17,33 +17,58 @@ import (
 	"github.com/major0/gitrack/internal/server"
 )
 
-const usage = `git-track - distributed tracker whose state merges with your code
+// tagline is the one-line description used in both --help and the man page.
+const tagline = "distributed tracker whose state merges with your code"
 
-usage: git track <command> [args]
+// command describes one CLI verb. This slice is the single source of truth for
+// both the --help text and the generated man page (ADR-0016: one source, no
+// drift).
+type command struct {
+	Name    string // verb
+	Args    string // argument synopsis
+	Summary string // one-line description
+}
 
-commands:
-  init                        initialize a tracker in the current repository
-  config status ...           edit status workflows (see 'config status')
-  create [-k kind] <title>    create a track, print its id
-  update <ref> [flags]        change a track's title/status/kind/description
-  get [--json] <ref>[.path]   read a field/list/object (e.g. <ref>.comments.<id>)
-  set <ref>.<key> <value>     write a free-form field (not state/status)
-  show <ref>                  display a track (ref: id, short id, or slug)
-  list [--state s][-s status][-k kind]  list tracks
-  search <query>              find tracks by text in title/description/slug
-  close <ref> [--status=s]    close a track: state=closed, status=s (default done)
-  reopen <ref>                reopen a track: state=open, status=reopened
-  comment <ref> [-m msg] [--reply-to=<cid>]  add a Markdown comment
-  serve [--addr 127.0.0.1:0]  live loopback preview server (random port)
-  fsck [--write]              verify (or rebuild) the derived cache
+var commands = []command{
+	{"init", "", "initialize a tracker in the current repository"},
+	{"config", "status ...", "edit status workflows (see 'config status')"},
+	{"create", "[-k kind] <title>", "create a track, print its id"},
+	{"update", "<ref> [flags]", "change a track's title/status/kind/description"},
+	{"get", "[--json] <ref>[.path]", "read a field, list, or object (e.g. <ref>.comments.<id>)"},
+	{"set", "<ref>.<key> <value>", "write a free-form field (not state/status)"},
+	{"show", "<ref>", "display a track (ref: id, short id, or slug)"},
+	{"list", "[--state s] [-s status] [-k kind]", "list tracks"},
+	{"search", "<query>", "find tracks by text in title/description/slug"},
+	{"close", "<ref> [--status=s]", "close a track: state=closed, status=s (default done)"},
+	{"reopen", "<ref>", "reopen a track: state=open, status=reopened"},
+	{"comment", "<ref> [-m msg] [--reply-to=<cid>]", "add a Markdown comment"},
+	{"serve", "[--addr 127.0.0.1:0]", "live loopback preview server (random port)"},
+	{"fsck", "[--write]", "verify (or rebuild) the derived cache"},
+}
 
-Every command is a verb. A track has two axes (ADR-0019): a fixed state
-(open|closed) changed only by create/close/reopen, and a customizable status
-workflow (built-ins new/reopened/done plus user-defined statuses in
-config/statuses/) moved by 'update -s'.
+// overview is the shared prose shown after the command list.
+const overview = `Every command is a verb. A track has two axes: a fixed state (open|closed)
+changed only by create/close/reopen, and a customizable status workflow
+(built-ins new/reopened/done plus user-defined statuses in config/statuses/)
+moved by 'update -s'. update flags: -t title | -s status | -k kind |
+-d description. See docs/FORMAT.md for the on-disk format.`
 
-update flags: -t title | -s status | -k kind | -d description
-See docs/FORMAT.md for the on-disk format.`
+// usageText renders the --help screen from the command data.
+func usageText() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "git-track - %s\n\nusage: git track <command> [args]\n\ncommands:\n", tagline)
+	for _, c := range commands {
+		synopsis := c.Name
+		if c.Args != "" {
+			synopsis += " " + c.Args
+		}
+		fmt.Fprintf(&b, "  %-42s%s\n", synopsis, c.Summary)
+	}
+	b.WriteString("\n")
+	b.WriteString(overview)
+	b.WriteString("\n")
+	return b.String()
+}
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -53,8 +78,18 @@ func main() {
 }
 
 func run(args []string) error {
-	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
-		fmt.Println(usage)
+	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
+		fmt.Print(usageText())
+		return nil
+	}
+	if args[0] == "help" {
+		// `git track help --man` emits the roff man page from the same command
+		// data (ADR-0016 single source). Plain `help` prints usage.
+		if len(args) > 1 && args[1] == "--man" {
+			fmt.Print(manPage())
+			return nil
+		}
+		fmt.Print(usageText())
 		return nil
 	}
 	cmd, rest := args[0], args[1:]
