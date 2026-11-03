@@ -87,9 +87,28 @@ func TestServeLiveRead(t *testing.T) {
 	if !strings.Contains(board, "graph LR") {
 		t.Error("board page missing the mermaid digraph")
 	}
-	// index links to the board
+	// index links to the board and issues
 	if !strings.Contains(body, `href="/board"`) {
 		t.Error("index should link to /board")
+	}
+	if !strings.Contains(body, `href="/issues"`) {
+		t.Error("index should link to /issues")
+	}
+
+	// issues page: the open track shows under Open; close it and it moves to Closed
+	issues := get(t, base+"/issues")
+	if !strings.Contains(issues, "Open (1)") {
+		t.Errorf("issues page should show Open (1):\n%s", issues)
+	}
+	if !strings.Contains(issues, "Live Track Example") {
+		t.Error("issues page missing the open track")
+	}
+	if err := repo.Close(id, ""); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	issues = get(t, base+"/issues") // live: re-read reflects the close
+	if !strings.Contains(issues, "Closed (1)") {
+		t.Errorf("after close, issues page should show Closed (1):\n%s", issues)
 	}
 }
 

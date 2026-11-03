@@ -18,7 +18,7 @@ import (
 var listTmpl = template.Must(template.New("list").Parse(`<!doctype html>
 <html><head><meta charset="utf-8"><title>gitrack</title></head>
 <body>
-<p><b>all tracks</b> | <a href="/board">board</a></p>
+<p><b>all tracks</b> | <a href="/issues">issues</a> | <a href="/board">board</a></p>
 <h1>gitrack</h1>
 <table>
 <tr><th>id</th><th>state</th><th>status</th><th>kind</th><th>title</th></tr>
@@ -28,6 +28,26 @@ var listTmpl = template.Must(template.New("list").Parse(`<!doctype html>
 <td>{{.Title}}</td>
 </tr>
 {{end}}</table>
+</body></html>`))
+
+// issuesTmpl renders the live issues view: open tracks over closed, mirroring
+// the static web generator's issues.html.
+var issuesTmpl = template.Must(template.New("issues").Parse(`<!doctype html>
+<html><head><meta charset="utf-8"><title>gitrack issues</title></head>
+<body>
+<p><a href="/">all tracks</a> | <b>issues</b> | <a href="/board">board</a></p>
+<h1>Issues</h1>
+<h2>Open ({{len .Open}})</h2>
+<ul>
+{{range .Open}}<li><a href="/track/{{.ID}}">{{slice .ID 0 8}}</a> [{{.Status}}] {{.Kind}} &mdash; {{.Title}}
+{{- range .Labels}} ({{.}}){{end}}</li>
+{{else}}<li><em>no open issues</em></li>{{end}}
+</ul>
+<h2>Closed ({{len .Closed}})</h2>
+<ul>
+{{range .Closed}}<li><a href="/track/{{.ID}}">{{slice .ID 0 8}}</a> [{{.Status}}] {{.Kind}} &mdash; {{.Title}}</li>
+{{else}}<li><em>no closed issues</em></li>{{end}}
+</ul>
 </body></html>`))
 
 // boardTmpl renders the Ready/Blocked board plus an in-browser Mermaid digraph.
@@ -41,7 +61,7 @@ mermaid.initialize({ startOnLoad: true });
 </script>
 </head>
 <body>
-<p><a href="/">all tracks</a> | <b>board</b></p>
+<p><a href="/">all tracks</a> | <a href="/issues">issues</a> | <b>board</b></p>
 <h1>Board</h1>
 <h2>Ready ({{len .Ready}})</h2>
 <ul>
@@ -109,6 +129,7 @@ func Serve(repo *core.Repo, addr string, announce func(url string)) error {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex(repo))
+	mux.HandleFunc("/issues", handleIssues(repo))
 	mux.HandleFunc("/board", handleBoard(repo))
 	mux.HandleFunc("/track/", handleTrack(repo))
 	if announce != nil {
@@ -142,6 +163,39 @@ func handleIndex(repo *core.Repo) http.HandlerFunc {
 		sort.Slice(tracks, func(i, j int) bool { return tracks[i].ID < tracks[j].ID })
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := listTmpl.Execute(w, tracks); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+// handleIssues renders the live open/closed issues view, read from the tree on
+// each request (mirrors the static web issues.html).
+func handleIssues(repo *core.Repo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ids, err := repo.ListIDs()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var open, closed []*core.Track
+		for _, id := range ids {
+			t, err := repo.Load(id)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if t.State == core.StateClosed {
+				closed = append(closed, t)
+			} else {
+				open = append(open, t)
+			}
+		}
+		data := struct {
+			Open   []*core.Track
+			Closed []*core.Track
+		}{open, closed}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := issuesTmpl.Execute(w, data); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
