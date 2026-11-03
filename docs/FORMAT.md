@@ -326,8 +326,12 @@ Slug vs short-uuid is disambiguated by shape (a pure-hex value is a short-uuid; 
 slug may not be pure hex — enforced at mint). From a code commit, the
 `Gitrack-Ref: <ref>` trailer carries the same value with the `#` dropped.
 
-Cross-repo refs resolve against the named remote when reachable; offline, the
-renderer shows the URL plus short id, and `fsck` (§4.1) refreshes them.
+A cross-repo ref `#<repo-url>?track=<uuid>` renders (in the web output) as an
+**external link to the remote repo**, labeled with the repo name + short uuid —
+parsed and linked with **no network fetch**, so rendering stays offline and
+trust-safe (ADR-0034). Reading the remote track's title/state would require a
+fetch and is deliberately out of the render path; it is possible future opt-in
+work, never a render-time network call.
 
 ## 8.2 Accessor paths — `get` / `set` (ADR-0021)
 

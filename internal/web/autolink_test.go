@@ -52,6 +52,30 @@ func TestAutolinkResolvesAndEscapes(t *testing.T) {
 	}
 }
 
+func TestAutolinkCrossRepo(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	url := "https://github.com/major0/other"
+	uuid := "0192f1a2-7c3e-7abc-def0-112233445566"
+	got := string(autolink(repo, "../", "see #"+url+"?track="+uuid+" upstream"))
+
+	// renders as an external link to the remote repo (not a local track page)
+	if !strings.Contains(got, `<a href="`+url+`">`) {
+		t.Errorf("cross-repo ref not linked to the remote repo:\n%s", got)
+	}
+	// label shows repo + short uuid
+	if !strings.Contains(got, "#other?track=0192f1a2") {
+		t.Errorf("cross-repo label wrong:\n%s", got)
+	}
+	// it must NOT be treated as a local track link
+	if strings.Contains(got, `href="../track/`) {
+		t.Errorf("cross-repo ref should not become a local track link:\n%s", got)
+	}
+}
+
 func TestAutolinkShortId(t *testing.T) {
 	dir := t.TempDir()
 	repo, _ := core.Init(dir)
