@@ -41,6 +41,26 @@ history, issues, comments, relationships, boards — offline and complete.
   S3 / shared drive / IPFS / bundle as first-class static-sync targets over time
   (ADR-0029).
 
+## The developer portal (the site generator's shape)
+
+`git track web` is **Hugo in spirit, but tooled for software development**: it
+renders the whole project as one themeable static site — a *developer portal* —
+with config-toggled sections (ADR-0036):
+
+- **Issues** — the tracker (index, issues, board, per-track). Built.
+- **Docs** — the repo's Markdown documentation, rendered to HTML. Planned.
+- **Source tree** — a gitweb-style browser of commits, trees, and files.
+  Planned.
+
+Simple config under `.gitrack/config/site/` enables/disables sections, selects a
+theme, and carries per-language options (highlighting, layout). A themeable
+template layer lets you restyle the whole portal in one place; the built-in
+theme ships inline so the site works offline from `file://`.
+
+This is the **developer portal** — issues + docs + code for distributed
+development — **not** the project's marketing/primary website. For that, keep
+using dedicated site tooling such as Hugo; the portal complements it.
+
 ## What it does NOT mean
 
 - Not anti-collaboration: you still sync with teammates — through git remotes,
@@ -48,3 +68,5 @@ history, issues, comments, relationships, boards — offline and complete.
   hosted tracker.
 - Not anti-GitHub: GitHub Pages is a fine static host, and the `#<repo-url>`
   cross-repo reference (ADR-0011) spans repositories wherever they live.
+- Not a website builder: the portal renders issues/docs/source for developers;
+  the project's primary/marketing site stays separate tooling (e.g. Hugo).
