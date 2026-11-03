@@ -4,88 +4,15 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-
-	"github.com/major0/gitrack/internal/core"
 )
 
-// renderBody executes a body template to HTML for embedding in the base layout.
+// renderBody executes a body template to HTML for embedding in the theme shell.
+// Local tracker data is rendered as template.HTML; authored text is passed
+// through autolink first (escape-then-linkify, ADR-0030) before reaching here.
 func renderBody(t *template.Template, data any) (template.HTML, error) {
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("rendering body: %w", err)
 	}
 	return template.HTML(buf.String()), nil //nolint:gosec // local tracker data, not external input
-}
-
-func writeIndex(outDir string, tracks []*core.Track) error {
-	body, err := renderBody(indexBodyTmpl, tracks)
-	if err != nil {
-		return err
-	}
-	return render(outDir, "index.html", pageData{Title: "gitrack", Root: "", Body: body})
-}
-
-func writeTrack(outDir string, repo *core.Repo, t *core.Track) error {
-	// Track pages live in track/<id>.html, one level below root, so refs link
-	// back up via "../" (ADR-0030).
-	mentions, err := repo.Mentions(t.ID)
-	if err != nil {
-		return err
-	}
-	comments, err := repo.ListComments(t.ID)
-	if err != nil {
-		return err
-	}
-	view := trackView{
-		Track:    t,
-		DescHTML: autolink(repo, "../", t.Description),
-		Mentions: mentions,
-		Comments: buildThread(repo, "../", comments),
-	}
-	body, err := renderBody(trackBodyTmpl, view)
-	if err != nil {
-		return err
-	}
-	return render(outDir, "track/"+t.ID+".html",
-		pageData{Title: t.Title, Root: "../", Body: body})
-}
-
-func writeIssues(outDir string, tracks []*core.Track) error {
-	var open, closed []*core.Track
-	for _, t := range tracks {
-		if t.State == core.StateClosed {
-			closed = append(closed, t)
-		} else {
-			open = append(open, t)
-		}
-	}
-	view := struct {
-		Open   []*core.Track
-		Closed []*core.Track
-	}{open, closed}
-	body, err := renderBody(issuesBodyTmpl, view)
-	if err != nil {
-		return err
-	}
-	return render(outDir, "issues.html", pageData{Title: "gitrack issues", Root: "", Body: body})
-}
-
-func writeBoard(outDir string, board *core.Board) error {
-	var ready, blocked []core.BoardEntry
-	for _, e := range board.Entries {
-		if !e.Open {
-			continue
-		}
-		if e.Ready() {
-			ready = append(ready, e)
-		} else {
-			blocked = append(blocked, e)
-		}
-	}
-	view := boardView{Ready: ready, Blocked: blocked, Mermaid: board.Mermaid()}
-	body, err := renderBody(boardBodyTmpl, view)
-	if err != nil {
-		return err
-	}
-	return render(outDir, "board.html", pageData{Title: "gitrack board", Root: "", Body: body})
 }
