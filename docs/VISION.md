@@ -41,25 +41,35 @@ history, issues, comments, relationships, boards — offline and complete.
   S3 / shared drive / IPFS / bundle as first-class static-sync targets over time
   (ADR-0029).
 
-## The developer portal (the site generator's shape)
+## The project website (the site generator's shape)
 
-`git track web` is **Hugo in spirit, but tooled for software development**: it
-renders the whole project as one themeable static site — a *developer portal* —
-with config-toggled sections (ADR-0036):
+`git track web` renders the **whole project website** as one themeable static
+site, so a project needs no second static-site tool. It is built from
+independent, config-toggled sections over a shared theme (ADR-0036/0037):
 
+- **Portal** — front page, about, contact, and a news **blog**. Planned.
+- **Docs** — the repo's Markdown documentation with a project-defined layout.
+  Planned.
+- **API reference** — generated from source via language-specific generators
+  (Go first). Planned.
 - **Issues** — the tracker (index, issues, board, per-track). Built.
-- **Docs** — the repo's Markdown documentation, rendered to HTML. Planned.
+- **Releases** — release notes per tag, autolinking the issues they ship.
+  Planned.
 - **Source tree** — a gitweb-style browser of commits, trees, and files.
   Planned.
 
 Simple config under `.gitrack/config/site/` enables/disables sections, selects a
-theme, and carries per-language options (highlighting, layout). A themeable
-template layer lets you restyle the whole portal in one place; the built-in
-theme ships inline so the site works offline from `file://`.
+theme, and carries content locations and per-language options (highlighting,
+docs/API layout). A themeable template layer lets you restyle the whole site in
+one place; the built-in theme ships inline so the site works offline from
+`file://`. Autolinking of `#refs` works across every section that renders
+authored text — docs, blog, releases, issues, API prose, commit messages — not
+just issues.
 
-This is the **developer portal** — issues + docs + code for distributed
-development — **not** the project's marketing/primary website. For that, keep
-using dedicated site tooling such as Hugo; the portal complements it.
+This is the project's **complete web presence** — marketing, blog, docs, API,
+issues, releases, and source — generated from the repo and tracker with
+zero-infra, offline, host-neutral output. (ADR-0037 supersedes the earlier
+boundary that reserved the marketing site for separate tooling.)
 
 ## What it does NOT mean
 
@@ -68,5 +78,6 @@ using dedicated site tooling such as Hugo; the portal complements it.
   hosted tracker.
 - Not anti-GitHub: GitHub Pages is a fine static host, and the `#<repo-url>`
   cross-repo reference (ADR-0011) spans repositories wherever they live.
-- Not a website builder: the portal renders issues/docs/source for developers;
-  the project's primary/marketing site stays separate tooling (e.g. Hugo).
+- Not an application framework: the site is fully static and offline by
+  construction (ADR-0029). It renders the project's whole web presence from the
+  repo and tracker, but it runs no server in the deployment path.
