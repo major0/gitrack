@@ -31,6 +31,13 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   ul.issues{list-style:none;padding:0}
   ul.issues li{padding:.3rem 0;border-bottom:1px solid #f0f0f0}
   .label{background:#eef;border-radius:3px;padding:0 .3rem;font-size:.85em}
+  blockquote{margin:.5rem 0;padding:.2rem .8rem;border-left:3px solid #ddd;color:#555}
+  pre{background:#f4f4f4;padding:.6rem;border-radius:4px;overflow:auto}
+  pre code{background:none;padding:0}
+  .post-meta{color:#777;font-size:.9em;margin:-.3rem 0 1rem}
+  ul.posts{list-style:none;padding:0}
+  ul.posts li{padding:.4rem 0;border-bottom:1px solid #f0f0f0}
+  ul.posts .date{color:#777;font-size:.9em;margin-right:.5rem}
 </style>
 </head><body>
 <nav>{{range .Nav}}<a href="{{.Href}}">{{.Label}}</a>{{end}}</nav>
@@ -142,3 +149,19 @@ type boardView struct {
 	Blocked []core.BoardEntry
 	Mermaid string
 }
+
+// postBodyTmpl renders one blog post: title, optional date meta, then the
+// already-rendered Markdown body (ADR-0039). Pure HTML, no script.
+var postBodyTmpl = template.Must(template.New("post").Parse(`
+<p><a href="index.html">&larr; all posts</a></p>
+<h1>{{.Title}}</h1>
+{{if .Date}}<p class="post-meta">{{.Date}}</p>{{end}}
+{{.BodyHTML}}`))
+
+// blogIndexTmpl lists posts newest-first (ADR-0039). Pure HTML, no script.
+var blogIndexTmpl = template.Must(template.New("blogindex").Parse(`
+<h1>Blog</h1>
+<ul class="posts">
+{{range .}}<li>{{if .Date}}<span class="date">{{.Date}}</span>{{end}}<a href="{{.Slug}}.html">{{.Title}}</a></li>
+{{else}}<li class="muted">no posts</li>{{end}}
+</ul>`))

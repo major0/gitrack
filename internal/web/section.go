@@ -37,7 +37,9 @@ type section interface {
 	name() string
 	// nav returns the navigation entries this section contributes, in order.
 	// A section may contribute more than one (issues: tracks, issues, board).
-	nav() []navItem
+	// It is given the site context so entries can depend on home-ownership and
+	// which sibling sections are enabled (ADR-0039).
+	nav(sc *siteContext) []navItem
 	// render writes the section's pages into the site. It is given the shared
 	// context (output dir, repo, resolved nav, theme) so every page gets the
 	// same shell and navigation.
@@ -52,10 +54,20 @@ type siteContext struct {
 	outDir string
 	nav    []navItem
 	theme  *theme
+	// homeSection is the name of the section that owns the site root index.html
+	// (the first enabled section, ADR-0039). A section compares its own name to
+	// decide whether it writes index.html or its secondary path.
+	homeSection string
+	// blogEnabled reports whether the blog section is enabled, so the portal
+	// section can include the blog link in its nav (ADR-0039).
+	blogEnabled bool
 	// trackPages counts per-track pages written, reported by Generate for
 	// backward compatibility with the CLI's "(N track pages)" message.
 	trackPages int
 }
+
+// isHome reports whether the named section owns the site root index.html.
+func (sc *siteContext) isHome(name string) bool { return sc.homeSection == name }
 
 // buildSections resolves the configured section names to section renderers, in
 // config order, dropping unknown names (guardrails-not-enforcement, ADR-0026).
@@ -67,6 +79,10 @@ func buildSections(cfg siteConfig) []section {
 		switch name {
 		case sectionIssues:
 			out = append(out, &issuesSection{})
+		case sectionPortal:
+			out = append(out, &portalSection{})
+		case sectionBlog:
+			out = append(out, &blogSection{})
 		default:
 			// Unknown or not-yet-built section: skip (ADR-0026, ADR-0037 §1).
 		}
@@ -75,13 +91,48 @@ func buildSections(cfg siteConfig) []section {
 }
 
 // resolveNav collects the nav entries from all sections, in section order, into
-// the single site navigation.
-func resolveNav(sections []section) []navItem {
+// the single site navigation. It is given the context so section nav can depend
+// on home-ownership and sibling sections (ADR-0039).
+func resolveNav(sections []section, sc *siteContext) []navItem {
 	var nav []navItem
 	for _, s := range sections {
-		nav = append(nav, s.nav()...)
+		nav = append(nav, s.nav(sc)...)
 	}
 	return nav
+}
+
+// homeProvider is an optional capability: a section implements it to report
+// whether it can actually produce the site root index.html for this repo. A
+// section without a home page (e.g. portal with no front.md) declines, so home
+// falls through to the next section (ADR-0039).
+type homeProvider interface {
+	providesHome(repo *core.Repo) bool
+}
+
+// homeSectionName returns the name of the first enabled section that can own the
+// site root index.html (ADR-0039). A section that does not implement
+// homeProvider is assumed to always provide a home (e.g. issues). Returns "" when
+// no enabled section can provide one.
+func homeSectionName(sections []section, repo *core.Repo) string {
+	for _, s := range sections {
+		if hp, ok := s.(homeProvider); ok {
+			if !hp.providesHome(repo) {
+				continue
+			}
+		}
+		return s.name()
+	}
+	return ""
+}
+
+// hasSection reports whether a section with the given name is in the set.
+func hasSection(sections []section, name string) bool {
+	for _, s := range sections {
+		if s.name() == name {
+			return true
+		}
+	}
+	return false
 }
 
 // renderPage wraps a section body in the active theme shell and writes it to

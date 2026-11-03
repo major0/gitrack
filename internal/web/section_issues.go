@@ -15,11 +15,22 @@ type issuesSection struct{}
 
 func (s *issuesSection) name() string { return sectionIssues }
 
-// nav returns the tracker's three nav entries in their historical order so the
-// generated nav bar is byte-identical to pre-ADR-0037 output.
-func (s *issuesSection) nav() []navItem {
+// indexHref returns where the track index lives: index.html when issues owns the
+// site root (issues-only default, preserving Phase 0 output), else tracks.html
+// when another section is home (ADR-0039).
+func (s *issuesSection) indexHref(sc *siteContext) string {
+	if sc.isHome(sectionIssues) {
+		return "index.html"
+	}
+	return "tracks.html"
+}
+
+// nav returns the tracker's three nav entries. When issues owns the site root
+// the first entry is index.html labeled "tracks" (byte-identical to pre-ADR-0037
+// output); otherwise the track index is tracks.html (ADR-0039).
+func (s *issuesSection) nav(sc *siteContext) []navItem {
 	return []navItem{
-		{Label: "tracks", Href: "index.html"},
+		{Label: "tracks", Href: s.indexHref(sc)},
 		{Label: "issues", Href: "issues.html"},
 		{Label: "board", Href: "board.html"},
 	}
@@ -86,7 +97,7 @@ func (s *issuesSection) writeIndex(sc *siteContext, tracks []*core.Track) error 
 	if err != nil {
 		return err
 	}
-	return sc.renderPage("index.html", "", "gitrack", body)
+	return sc.renderPage(s.indexHref(sc), "", "gitrack", body)
 }
 
 func (s *issuesSection) writeIssues(sc *siteContext, tracks []*core.Track) error {

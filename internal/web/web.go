@@ -46,11 +46,15 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 	}
 	sections := buildSections(cfg)
 	sc := &siteContext{
-		repo:   repo,
-		outDir: outDir,
-		nav:    resolveNav(sections),
-		theme:  th,
+		repo:        repo,
+		outDir:      outDir,
+		theme:       th,
+		homeSection: homeSectionName(sections, repo),
+		blogEnabled: hasSection(sections, sectionBlog),
 	}
+	// Nav depends on home-ownership and sibling sections, so resolve it after
+	// the context is populated (ADR-0039).
+	sc.nav = resolveNav(sections, sc)
 	for _, s := range sections {
 		if err := s.render(sc); err != nil {
 			return 0, err
