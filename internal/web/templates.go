@@ -38,6 +38,15 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   ul.posts{list-style:none;padding:0}
   ul.posts li{padding:.4rem 0;border-bottom:1px solid #f0f0f0}
   ul.posts .date{color:#777;font-size:.9em;margin-right:.5rem}
+  .docs-layout{display:flex;gap:1.5rem;align-items:flex-start}
+  .docs-nav{flex:0 0 14rem;font-size:.95em}
+  .docs-nav ul{list-style:none;padding-left:.8rem;margin:.2rem 0}
+  .docs-nav>ul{padding-left:0}
+  .docs-nav li{margin:.15rem 0}
+  .docs-group{color:#555;font-weight:600}
+  .docs-current{font-weight:600}
+  .docs-content{flex:1 1 auto;min-width:0}
+  @media(max-width:48rem){.docs-layout{display:block}.docs-nav{margin-bottom:1rem}}
 </style>
 </head><body>
 <nav>{{range .Nav}}<a href="{{.Href}}">{{.Label}}</a>{{end}}</nav>
@@ -165,3 +174,14 @@ var blogIndexTmpl = template.Must(template.New("blogindex").Parse(`
 {{range .}}<li>{{if .Date}}<span class="date">{{.Date}}</span>{{end}}<a href="{{.Slug}}.html">{{.Title}}</a></li>
 {{else}}<li class="muted">no posts</li>{{end}}
 </ul>`))
+
+// docsBodyTmpl renders a docs page: the sidebar layout and the doc content side
+// by side (ADR-0040). The sidebar and content are pre-rendered HTML. Pure HTML,
+// no script.
+var docsBodyTmpl = template.Must(template.New("docs").Parse(`
+<div class="docs-layout">
+{{.Sidebar}}
+<main class="docs-content">
+{{.ContentHTML}}
+</main>
+</div>`))

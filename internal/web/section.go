@@ -83,6 +83,8 @@ func buildSections(cfg siteConfig) []section {
 			out = append(out, &portalSection{})
 		case sectionBlog:
 			out = append(out, &blogSection{})
+		case sectionDocs:
+			out = append(out, &docsSection{})
 		default:
 			// Unknown or not-yet-built section: skip (ADR-0026, ADR-0037 §1).
 		}

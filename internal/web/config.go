@@ -52,6 +52,20 @@ func loadSiteConfig(repo *core.Repo) (siteConfig, error) {
 	return cfg, nil
 }
 
+// readConfigFile returns the raw contents of a config file; a missing file
+// yields "" with no error. Used where structure (e.g. the docs layout's
+// indentation) must be preserved rather than line-stripped.
+func readConfigFile(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading %s: %w", path, err)
+	}
+	return string(b), nil
+}
+
 // readConfigLines returns the non-empty, comment-stripped lines of a config
 // file; a missing file yields nil with no error. This mirrors core's internal
 // readLines convention (ADR-0026) for the web-owned site config.

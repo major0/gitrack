@@ -59,14 +59,15 @@ func TestLoadSiteConfigReadsFiles(t *testing.T) {
 }
 
 func TestBuildSectionsDropsUnknown(t *testing.T) {
-	// Only issues is registered in Phase 0; an unbuilt/unknown name is skipped
-	// (guardrails, ADR-0026).
+	// Registered sections build in config order; an unknown/not-yet-built name
+	// is skipped (guardrails, ADR-0026). "bogus" is dropped; issues and docs
+	// (both registered) are kept in order.
 	got := buildSections(siteConfig{Sections: []string{"issues", "docs", "bogus"}})
-	if len(got) != 1 {
-		t.Fatalf("buildSections kept %d sections, want 1 (issues only)", len(got))
+	if len(got) != 2 {
+		t.Fatalf("buildSections kept %d sections, want 2 (issues, docs; bogus dropped)", len(got))
 	}
-	if got[0].name() != sectionIssues {
-		t.Errorf("kept section %q, want issues", got[0].name())
+	if got[0].name() != sectionIssues || got[1].name() != sectionDocs {
+		t.Errorf("kept %q,%q; want issues,docs", got[0].name(), got[1].name())
 	}
 }
 
