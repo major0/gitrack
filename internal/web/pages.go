@@ -50,6 +50,26 @@ func writeTrack(outDir string, repo *core.Repo, t *core.Track) error {
 		pageData{Title: t.Title, Root: "../", Body: body})
 }
 
+func writeIssues(outDir string, tracks []*core.Track) error {
+	var open, closed []*core.Track
+	for _, t := range tracks {
+		if t.State == core.StateClosed {
+			closed = append(closed, t)
+		} else {
+			open = append(open, t)
+		}
+	}
+	view := struct {
+		Open   []*core.Track
+		Closed []*core.Track
+	}{open, closed}
+	body, err := renderBody(issuesBodyTmpl, view)
+	if err != nil {
+		return err
+	}
+	return render(outDir, "issues.html", pageData{Title: "gitrack issues", Root: "", Body: body})
+}
+
 func writeBoard(outDir string, board *core.Board) error {
 	var ready, blocked []core.BoardEntry
 	for _, e := range board.Entries {

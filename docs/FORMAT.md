@@ -422,7 +422,9 @@ follow-ons.
 ## 9.2 Static site — `git track web` (ADR-0029)
 
 `git track web --out <dir>` generates a **self-contained static site** from the
-tracker: an index of tracks, a page per track, and a board page. Per ADR-0029
+tracker: a tracks index, an **issues view** (`issues.html` — GitHub-style, open
+tracks over closed, each row showing status/kind/labels/assignees and linking to
+the track page), a page per track, and a board page. Per ADR-0029
 the output is offline-capable and host-neutral — inline CSS (no external
 stylesheet), all links relative (works from `file://` or any subpath), and no
 network dependency for core content. The board's dependency digraph is a

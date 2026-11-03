@@ -86,6 +86,48 @@ func TestGenerateStaticSite(t *testing.T) {
 	}
 }
 
+func TestGenerateIssuesView(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	openID, _ := repo.Create(core.NewTrackOpts{Title: "Still open"})
+	doneID, _ := repo.Create(core.NewTrackOpts{Title: "Already done"})
+	if err := repo.Close(doneID, ""); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	out := filepath.Join(t.TempDir(), "site")
+	if _, err := Generate(repo, out); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	issues, err := os.ReadFile(filepath.Join(out, "issues.html"))
+	if err != nil {
+		t.Fatalf("no issues.html: %v", err)
+	}
+	s := string(issues)
+	// open section has the open track; closed section has the done one
+	if !strings.Contains(s, "Open (1)") {
+		t.Errorf("expected Open (1); got page:\n%s", s)
+	}
+	if !strings.Contains(s, "Closed (1)") {
+		t.Errorf("expected Closed (1)")
+	}
+	if !strings.Contains(s, "Still open") || !strings.Contains(s, "Already done") {
+		t.Error("issues page missing a track title")
+	}
+	// links are relative to track pages
+	if !strings.Contains(s, `href="track/`+openID+`.html"`) {
+		t.Error("issues page should link to the track page relatively")
+	}
+	// nav links to issues from the index
+	index, _ := os.ReadFile(filepath.Join(out, "index.html"))
+	if !strings.Contains(string(index), `href="issues.html"`) {
+		t.Error("index nav should link to issues")
+	}
+}
+
 func TestGenerateOverwrites(t *testing.T) {
 	dir := t.TempDir()
 	repo, _ := core.Init(dir)

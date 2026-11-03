@@ -52,6 +52,9 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 	if err := writeIndex(outDir, tracks); err != nil {
 		return 0, err
 	}
+	if err := writeIssues(outDir, tracks); err != nil {
+		return 0, err
+	}
 	if err := writeBoard(outDir, board); err != nil {
 		return 0, err
 	}
