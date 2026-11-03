@@ -175,3 +175,44 @@ func TestParseDirectives(t *testing.T) {
 		t.Error("plain message should yield no directives")
 	}
 }
+
+// TestClosingKeywordLists covers the GitLab-superset list behavior (ADR-0035):
+// one keyword governs the whole list of refs that follows it.
+func TestClosingKeywordLists(t *testing.T) {
+	verbOf := func(message string) map[string]string {
+		m := map[string]string{}
+		for _, d := range ParseDirectives(message) {
+			m[d.Handle] = d.Verb
+		}
+		return m
+	}
+	cases := []struct {
+		name    string
+		message string
+		closes  []string // handles expected to be "closes"
+		other   map[string]string
+	}{
+		{"space list", "Closes #a #b #c", []string{"a", "b", "c"}, nil},
+		{"comma list", "Resolves #a, #b, #c", []string{"a", "b", "c"}, nil},
+		{"comma-and list", "Closes #a, #b, and #c", []string{"a", "b", "c"}, nil},
+		{"keyword before each", "fixes #d, resolve #e", []string{"d", "e"}, nil},
+		{"footer caps", "feat: thing\n\nCloses #f #g", []string{"f", "g"}, nil},
+		{"implement keyword", "implements #h", []string{"h"}, nil},
+		{"run ends at a word", "closes #i then wip #j",
+			[]string{"i"}, map[string]string{"j": "mentions"}},
+		{"issue filler", "Closes issues #k and #l", []string{"k", "l"}, nil},
+	}
+	for _, c := range cases {
+		got := verbOf(c.message)
+		for _, h := range c.closes {
+			if got[h] != "closes" {
+				t.Errorf("[%s] %q: handle %q verb = %q, want closes", c.name, c.message, h, got[h])
+			}
+		}
+		for h, want := range c.other {
+			if got[h] != want {
+				t.Errorf("[%s] %q: handle %q verb = %q, want %q", c.name, c.message, h, got[h], want)
+			}
+		}
+	}
+}

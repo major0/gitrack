@@ -381,9 +381,17 @@ commit never auto-closes (ADR-0031); state changes only via `git track close` or
 this command.
 
 A track's **mentions** are derived from git history (ADR-0031, never stored):
-commits whose message references the track via `#<handle>` — `closes #<id>` /
-`resolves` / `fixes` (verb `closes`), `relates to #<id>` / `related to` (verb
-`relates`), or a bare `#<id>` (verb `mentions`). `git track show` and the web
+commits whose message references the track via `#<handle>`, classified by the
+keyword that governs it. Closing keywords (GitHub + GitLab union) are
+`close`/`closes`/`closed`/`closing`, `fix`/`fixes`/`fixed`/`fixing`,
+`resolve`/`resolves`/`resolved`/`resolving`, and
+`implement`/`implements`/`implemented`/`implementing`; relates keywords are
+`relate`/`relates`/`related` (`relates to`, `related to`). A keyword governs the
+**whole list** of refs that follows it (ADR-0035, the GitLab behavior): `Closes
+#a #b #c`, `Resolves #a, #b, #c`, and `Closes #a, #b, and #c` all attribute
+`closes` to every listed track; `fixes #d, resolve #e` also works (a keyword
+before each). Matching is case-insensitive, so Conventional-Commit footers
+(`Closes #a #b`) are recognized. A bare `#<id>` is a `mentions`. `git track show` and the web
 track page list them (short-sha + verb + subject), so the source tree
 cross-references the tracker. A `closes #<id>` commit does **not** auto-close the
 track — gitrack has no server; closing is the explicit `git track close`.

@@ -58,49 +58,75 @@ func (r *Repo) handles(id string) ([]string, error) {
 // "relates"; otherwise "mentions". Matching is lowercase and tolerant of
 // punctuation between the keyword and the ref.
 func classifyMention(message, handle string) string {
-	msg := strings.ToLower(message)
-	ref := "#" + strings.ToLower(handle)
-	// A handle can appear multiple times with different verbs; return the
-	// strongest (closes > relates > mentions) across all occurrences.
-	rank := map[string]int{"": -1, "mentions": 0, "relates": 1, "closes": 2}
-	best := ""
-	from := 0
-	for {
-		rel := strings.Index(msg[from:], ref)
-		if rel < 0 {
-			break
-		}
-		idx := from + rel
-		before := strings.TrimRight(msg[:idx], " \t")
-		var verb string
-		switch {
-		case hasSuffixWord(before, "closes"), hasSuffixWord(before, "close"),
-			hasSuffixWord(before, "resolves"), hasSuffixWord(before, "resolve"),
-			hasSuffixWord(before, "fixes"), hasSuffixWord(before, "fix"),
-			hasSuffixWord(before, "fixed"):
-			verb = "closes"
-		case hasSuffixWord(before, "relates to"), hasSuffixWord(before, "related to"),
-			hasSuffixWord(before, "relates"), hasSuffixWord(before, "related"):
-			verb = "relates"
-		default:
-			verb = "mentions"
-		}
-		if rank[verb] > rank[best] {
-			best = verb
-		}
-		from = idx + len(ref)
-	}
-	return best
+	return scanDirectives(message)[strings.ToLower(handle)]
 }
 
-// hasSuffixWord reports whether s ends with word on a word boundary.
-func hasSuffixWord(s, word string) bool {
-	if !strings.HasSuffix(s, word) {
-		return false
+// closingKeyword reports whether w (lowercased, trailing ':' already stripped)
+// is a closing keyword (GitHub + GitLab union, ADR-0035).
+func closingKeyword(w string) bool {
+	switch w {
+	case "close", "closes", "closed", "closing",
+		"fix", "fixes", "fixed", "fixing",
+		"resolve", "resolves", "resolved", "resolving",
+		"implement", "implements", "implemented", "implementing":
+		return true
 	}
-	rest := s[:len(s)-len(word)]
-	return rest == "" || strings.HasSuffix(rest, " ") || strings.HasSuffix(rest, "\n") ||
-		strings.HasSuffix(rest, "\t")
+	return false
+}
+
+// relatesKeyword reports whether w is a relates keyword.
+func relatesKeyword(w string) bool {
+	switch w {
+	case "relate", "relates", "related":
+		return true
+	}
+	return false
+}
+
+// scanDirectives walks the message left to right and attributes a verb to every
+// #<handle> by RUN (ADR-0035): a closing/relates keyword opens a run, and the
+// consecutive #refs that follow it — separated only by whitespace, commas, or
+// the word "and" (plus an optional "to"/"issue(s)" filler after the keyword) —
+// all receive that verb. Any other word ends the run; a ref outside a run is a
+// "mention". Returns handle(lowercased) -> strongest verb (closes>relates>mention).
+func scanDirectives(message string) map[string]string {
+	rank := map[string]int{"mentions": 0, "relates": 1, "closes": 2}
+	out := map[string]string{}
+	assign := func(handle, verb string) {
+		if cur, ok := out[handle]; !ok || rank[verb] > rank[cur] {
+			out[handle] = verb
+		}
+	}
+	// Tokenize on whitespace and commas, keeping each token.
+	tokens := strings.FieldsFunc(message, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == ','
+	})
+	run := "" // active run verb: "closes", "relates", or "" (none)
+	for _, tok := range tokens {
+		low := strings.ToLower(tok)
+		switch {
+		case strings.HasPrefix(tok, "#"):
+			handle := strings.ToLower(strings.TrimPrefix(tok, "#"))
+			if handle == "" {
+				run = ""
+				continue
+			}
+			if run != "" {
+				assign(handle, run)
+			} else {
+				assign(handle, "mentions")
+			}
+		case closingKeyword(strings.TrimRight(low, ":")):
+			run = "closes"
+		case relatesKeyword(strings.TrimRight(low, ":")):
+			run = "relates"
+		case low == "and" || low == "to" || low == "issue" || low == "issues":
+			// list/filler connectors keep the run open (ADR-0035)
+		default:
+			run = "" // any other word ends the run
+		}
+	}
+	return out
 }
 
 // Mentions returns the commits whose messages reference the track, derived from
@@ -193,25 +219,19 @@ var directiveToken = regexp.MustCompile(`#([0-9a-z][0-9a-z-]*)`)
 // verb (ADR-0033), reusing the mention classifier per occurrence. Duplicate
 // handles keep the strongest verb seen (closes > relates > mentions).
 func ParseDirectives(message string) []Directive {
-	rank := map[string]int{"mentions": 0, "relates": 1, "closes": 2}
-	best := map[string]string{}
-	var order []string
+	verbs := scanDirectives(message)
+	// Emit in first-appearance order of each distinct handle.
+	var out []Directive
+	seen := map[string]bool{}
 	for _, m := range directiveToken.FindAllStringSubmatch(message, -1) {
-		handle := m[1]
-		verb := classifyMention(message, handle)
-		if verb == "" {
+		h := strings.ToLower(m[1])
+		if seen[h] {
 			continue
 		}
-		if cur, ok := best[handle]; !ok {
-			best[handle] = verb
-			order = append(order, handle)
-		} else if rank[verb] > rank[cur] {
-			best[handle] = verb
+		seen[h] = true
+		if v, ok := verbs[h]; ok {
+			out = append(out, Directive{Handle: m[1], Verb: v})
 		}
-	}
-	out := make([]Directive, 0, len(order))
-	for _, h := range order {
-		out = append(out, Directive{Handle: h, Verb: best[h]})
 	}
 	return out
 }
