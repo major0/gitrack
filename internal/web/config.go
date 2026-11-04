@@ -66,6 +66,23 @@ func readConfigFile(path string) (string, error) {
 	return string(b), nil
 }
 
+// readConfigValue returns the first non-empty, non-comment line of a
+// single-value config file, or def when the file is missing or has no such line.
+func readConfigValue(path, def string) (string, error) {
+	raw, err := readConfigFile(path)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		return line, nil
+	}
+	return def, nil
+}
+
 // readConfigLines returns the non-empty, comment-stripped lines of a config
 // file; a missing file yields nil with no error. This mirrors core's internal
 // readLines convention (ADR-0026) for the web-owned site config.

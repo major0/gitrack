@@ -93,6 +93,8 @@ func buildSections(cfg siteConfig) []section {
 			out = append(out, &docsSection{})
 		case sectionReleases:
 			out = append(out, &releasesSection{})
+		case sectionSource:
+			out = append(out, &sourceSection{})
 		default:
 			// Unknown or not-yet-built section: skip (ADR-0026, ADR-0037 §1).
 		}

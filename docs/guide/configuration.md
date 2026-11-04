@@ -19,10 +19,13 @@ well-behaved path but cannot constrain what the tree physically contains, and
     ├── theme             # theme name (only the built-in theme exists today)
     ├── portal/           # portal pages (*.md); front.md is the front page
     ├── blog/             # blog posts (*.md)
-    └── docs/             # docs section settings
-        ├── source        # repo-relative docs source dir (default "docs")
-        ├── layout        # docs sidebar tree
-        └── exclude       # doc path patterns to omit from the site
+    ├── docs/             # docs section settings
+    │   ├── source        # repo-relative docs source dir (default "docs")
+    │   ├── layout        # docs sidebar tree
+    │   └── exclude       # doc path patterns to omit from the site
+    └── source/           # source browser settings
+        ├── ref           # what to snapshot: branch, tag, or commit (default HEAD)
+        └── commits       # how many log entries to render (default 100)
 ```
 
 ## Kinds
@@ -41,7 +44,7 @@ statuses `new`, `reopened`, and `done` are always valid and cannot be removed.
 ## Site sections
 
 `.gitrack/config/site/sections` lists the enabled sections in order, one per
-line (`portal`, `blog`, `docs`, `issues`, `releases`). Blank lines and `#` comments are
+line (`portal`, `blog`, `docs`, `issues`, `releases`, `source`). Blank lines and `#` comments are
 ignored. Absent ⇒ `issues` only, preserving the plain tracker view. An
 unknown or not-yet-built section name is skipped.
 
@@ -111,3 +114,20 @@ autolink targets. A pattern matches an exact rel path, a leading path segment
 architecture decision records are internal design docs, not user-facing. To
 publish everything, add an explicit `exclude` file (empty is fine); to hide more
 internal trees, list their patterns.
+
+## Source section
+
+Two optional single-line files under `.gitrack/config/site/source/`:
+
+### `ref`
+
+The branch, tag, or commit whose file tree is rendered. Absent ⇒ `HEAD`. A value
+beginning with `-` is refused, and a ref that does not resolve to a commit means
+there is nothing to browse, so the section emits nothing.
+
+### `commits`
+
+How many recent commits to list and give a page each. Absent, or not a positive
+number ⇒ `100`.
+
+See [Browsing source](source.md).

@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
-// rootForDocHref returns the path-to-site-root prefix for an output href by
+// rootForHref returns the path-to-site-root prefix for an output href by
 // counting its path separators: "docs/x.html" -> "../", "docs/a/b.html" ->
-// "../../". This lets a nested docs page link back to the site root and to
-// sibling pages via root-relative hrefs (ADR-0040).
-func rootForDocHref(href string) string {
+// "../../". This lets a nested page link back to the site root and to sibling
+// pages via root-relative hrefs (ADR-0040, ADR-0042).
+func rootForHref(href string) string {
 	depth := strings.Count(href, "/")
 	return strings.Repeat("../", depth)
 }

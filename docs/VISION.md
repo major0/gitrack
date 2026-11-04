@@ -54,8 +54,8 @@ independent, config-toggled sections over a shared theme:
   layout. Built.
 - **Releases** — release notes per tag, with the tracks each release shipped.
   Built.
-- **Source tree** — a gitweb-style browser of commits, trees, and files.
-  Planned.
+- **Source tree** — a gitweb-style browser: the file tree at one ref, numbered
+  files, and recent commits with their patches. Built.
 - **API reference** — generated from source via language-specific generators
   (Go first). Planned.
 
@@ -69,8 +69,7 @@ issues.
 
 The goal is the project's **complete web presence** — marketing, blog, docs,
 issues, releases, source, and API — generated from the repo and tracker with
-zero-infra, offline, host-neutral output. Source browsing and the API reference
-are what remain.
+zero-infra, offline, host-neutral output. The API reference is what remains.
 
 ## What it does NOT mean
 

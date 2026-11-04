@@ -41,8 +41,9 @@ view. The available sections:
 | `blog` | a news blog: one page per post and a newest-first index |
 | `docs` | the project's Markdown documentation with a configurable sidebar |
 | `releases` | release notes from `kind=release` tracks, newest first, with the tracks each shipped |
+| `source` | a gitweb-style browser: the file tree at one ref, numbered files, and recent commits |
 
-(Source-tree browsing and API reference sections are planned.)
+(A generated API reference section is planned.)
 
 Example `.gitrack/config/site/sections`:
 
@@ -52,6 +53,7 @@ blog
 docs
 issues
 releases
+source
 ```
 
 A section with no content emits nothing and drops its nav entry, so enabling a
@@ -114,6 +116,14 @@ every track of `kind` `release` from the tracker itself: the description is the
 release notes, the `ships` links are the shipped tracks, and the date comes from
 the git tag. Output is `releases/index.html` (newest first) and one
 `releases/<slug>.html` per release. See [Releases](releases.md).
+
+## Source section
+
+`source` reads your git repository rather than any content files: it renders the
+file tree at one ref (default `HEAD`), each file with numbered lines, and a log of
+recent commits with a page each. Two optional files, `source/ref` and
+`source/commits`, choose the snapshot and the log length. See
+[Browsing source](source.md).
 
 ## What's static and what's enhanced
 

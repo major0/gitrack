@@ -29,6 +29,8 @@ by subject:
   tracks from commit messages, and keeping a fix and its close in one commit.
 - [Releases](guide/releases.md) — record what each release shipped, and publish
   dated release notes.
+- [Browsing source](guide/source.md) — a gitweb-style browser of your files and
+  recent commits, as static pages.
 - [The project website](guide/website.md) — generate a static site: issues,
   portal, blog, docs, and releases sections, plus the live preview server.
 - [Configuration](guide/configuration.md) — every `.gitrack/config/` knob:

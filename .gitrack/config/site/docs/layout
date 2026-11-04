@@ -12,6 +12,7 @@ Guide
   guide/comments.md: Comments
   guide/commit-integration.md: Commit integration
   guide/releases.md: Releases
+  guide/source.md: Browsing source
   guide/website.md: The project website
   guide/configuration.md: Configuration
   guide/publishing.md: Publishing

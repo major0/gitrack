@@ -38,6 +38,19 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   ul.posts{list-style:none;padding:0}
   ul.posts li{padding:.4rem 0;border-bottom:1px solid #f0f0f0}
   ul.posts .date{color:#777;font-size:.9em;margin-right:.5rem}
+  .crumbs{margin:.2rem 0 .6rem}
+  table.tree td.size{text-align:right;white-space:nowrap}
+  pre.blob{counter-reset:ln;line-height:1.35}
+  pre.blob .l{counter-increment:ln}
+  pre.blob .l::before{content:counter(ln);display:inline-block;width:3.5em;margin-right:1em;text-align:right;color:#999;user-select:none}
+  pre.blob .l:target{background:#ffd}
+  pre.msg{white-space:pre-wrap;background:none;padding:0}
+  pre.diff .add{background:#e6ffec}
+  pre.diff .del{background:#ffebe9}
+  pre.diff .hunk{color:#06c}
+  pre.diff .hdr{color:#555;font-weight:600}
+  .stat-add{color:#171}
+  .stat-del{color:#a40}
   .docs-layout{display:flex;gap:1.5rem;align-items:flex-start}
   .docs-nav{flex:0 0 14rem;font-size:.95em}
   .docs-nav ul{list-style:none;padding-left:.8rem;margin:.2rem 0}

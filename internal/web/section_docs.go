@@ -70,8 +70,8 @@ func (s *docsSection) render(sc *siteContext) error {
 			return err
 		}
 		_, body := splitFrontMatter(string(src))
-		relPath := docHref(rel)         // e.g. "docs/adr/0001.html"
-		root := rootForDocHref(relPath) // path-to-site-root
+		relPath := docHref(rel)      // e.g. "docs/adr/0001.html"
+		root := rootForHref(relPath) // path-to-site-root
 		if err := s.writeDocPage(sc, relPath, root, docs[rel], body, tree); err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (s *docsSection) writeDocPage(sc *siteContext, relPath, root, title, body s
 // rendered if present, else a minimal page that is just the sidebar.
 func (s *docsSection) writeLanding(sc *siteContext, landingRel, sourceDir string, docs map[string]string, tree []*navNode) error {
 	const relPath = "docs/index.html"
-	root := rootForDocHref(relPath)
+	root := rootForHref(relPath)
 	title := "Docs"
 	body := ""
 	if landingRel != "" {
@@ -239,18 +239,9 @@ func docExcluded(rel string, patterns []string) bool {
 // sourceDir returns the absolute docs source directory: the configured path
 // (relative to repo root) or the default "docs" (ADR-0040).
 func (s *docsSection) sourceDir(sc *siteContext) (string, error) {
-	cfg, err := readConfigFile(filepath.Join(sc.repo.Root, core.Dir, docsConfigDir, "source"))
+	src, err := readConfigValue(filepath.Join(sc.repo.Root, core.Dir, docsConfigDir, "source"), defaultDocsSource)
 	if err != nil {
 		return "", err
-	}
-	src := defaultDocsSource
-	for _, line := range strings.Split(cfg, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		src = line
-		break
 	}
 	return filepath.Join(sc.repo.Root, filepath.FromSlash(src)), nil
 }
