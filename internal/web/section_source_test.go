@@ -428,3 +428,9 @@ func TestTrackMentionsLinkToSourceCommitPages(t *testing.T) {
 	assertMentionLink(t, trackPage(out), out, by[early], false)
 	assertMentionLink(t, trackPage(out), out, by[late], false)
 }
+
+// readOutMaybe is readOut that reports a missing file instead of failing the test.
+func readOutMaybe(out, rel string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(out, filepath.FromSlash(rel)))
+	return string(b), err
+}

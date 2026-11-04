@@ -20,6 +20,7 @@ well-behaved path but cannot constrain what the tree physically contains, and
     ├── portal/           # portal pages (*.md); front.md is the front page
     ├── blog/             # blog posts (*.md)
     ├── highlight         # code color style, or "off" (default github)
+    ├── copy              # "off" removes the code-block copy button (default on)
     ├── docs/             # docs section settings
     │   ├── source        # repo-relative docs source dir (default "docs")
     │   ├── layout        # docs sidebar tree
@@ -151,6 +152,12 @@ color style. Absent ⇒ the `github` style. A name that is not a known style is
 ignored and the default is used.
 
 This setting used to live at `source/highlight`; that location is no longer read.
+
+## Copy button
+
+`.gitrack/config/site/copy` is a single line. `off` leaves the copy-button script
+out of every page; anything else, or no file, leaves it on. Pages without code
+blocks never carry it either way. See [The project website](website.md).
 
 See [Browsing source](source.md#highlighting) for the available styles and the
 limits.

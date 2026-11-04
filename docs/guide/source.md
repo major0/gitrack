@@ -31,8 +31,9 @@ navigation entry.
   first, then files with their sizes. Every directory has its own page, with
   breadcrumbs back up the path.
 - **Files.** Each file has a page with numbered lines, syntax-highlighted when
-  its language is recognized. Click a line number, or add `#L12` to the address,
-  to link straight to a line.
+  its language is recognized, and a "Copy" button that copies the file's text
+  without the line numbers. Click a line number, or add `#L12` to the address, to
+  link straight to a line.
 - **The log.** `source/log.html` lists recent commits, newest first, with date
   and author.
 - **Commits.** Each logged commit has a page with its message, author, date, its
@@ -89,8 +90,8 @@ so the section produces nothing.
 
 ## Highlighting
 
-Files are colored at generation time, so the pages contain no script and work
-offline like everything else. The language comes from the file name: its
+Files are colored at generation time, so the colors themselves need no script and
+work offline like everything else. The language comes from the file name: its
 extension, or a well-known name such as `Makefile` or `Dockerfile`. Gitrack does
 not guess a language from a file's contents, so a file whose name it does not
 recognize, and plain `.txt` files, are shown uncolored.

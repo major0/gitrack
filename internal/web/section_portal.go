@@ -88,7 +88,7 @@ func (s *portalSection) render(sc *siteContext) error {
 		if err != nil {
 			return err
 		}
-		if err := sc.renderPageCSS(relPath, root, p.title, md.HTML, md.CSS); err != nil {
+		if err := sc.renderPageExtra(relPath, root, p.title, md.HTML, sc.extraFor(md.CSS, md.HasCode)); err != nil {
 			return err
 		}
 	}

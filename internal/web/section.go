@@ -70,6 +70,10 @@ type siteContext struct {
 	// srcMemo caches the source snapshot and log for this generation, so the
 	// source section and the track pages agree on which commit pages exist.
 	srcMemo sourceMemo
+	// copyLoaded and copyOn cache the copy-button setting for this generation
+	// (ADR-0047).
+	copyLoaded bool
+	copyOn     bool
 	// hlMemo is the site-wide highlighter, built once on first use. The source
 	// browser and Markdown code blocks share it, so they use one style and spend
 	// one budget (ADR-0045).
@@ -161,18 +165,20 @@ func hasSection(sections []section, name string) bool {
 // relPath under the output dir, with root as the page's path-to-site-root. The
 // nav is taken from the site context so every page shows the same bar.
 func (sc *siteContext) renderPage(relPath, root, title string, body template.HTML) error {
-	return sc.renderPageCSS(relPath, root, title, body, "")
+	return sc.renderPageExtra(relPath, root, title, body, pageExtra{})
 }
 
-// renderPageCSS is renderPage with an extra stylesheet emitted after the theme's
-// own, for a page that needs rules the rest of the site does not (ADR-0043).
-func (sc *siteContext) renderPageCSS(relPath, root, title string, body template.HTML, css template.CSS) error {
+// renderPageExtra is renderPage with extras for a page that needs more than the
+// theme: an extra stylesheet emitted after the theme's own (ADR-0043), and an
+// inline script (ADR-0047).
+func (sc *siteContext) renderPageExtra(relPath, root, title string, body template.HTML, x pageExtra) error {
 	data := pageData{
 		Title:    title,
 		Root:     root,
 		Nav:      navWithRoot(sc.nav, root),
 		Body:     body,
-		ExtraCSS: css,
+		ExtraCSS: x.CSS,
+		Script:   x.Script,
 	}
 	if err := sc.theme.render(sc.outDir, relPath, data); err != nil {
 		return fmt.Errorf("rendering %s: %w", relPath, err)

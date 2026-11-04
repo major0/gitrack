@@ -383,7 +383,8 @@ func (s *sourceSection) writeBlobs(sc *siteContext, snap *sourceSnapshot, files 
 		if view.Highlighted {
 			css = hl.css
 		}
-		if err := sc.renderPageCSS(page.file, root, e.Path+" - source", body, css); err != nil {
+		if err := sc.renderPageExtra(page.file, root, e.Path+" - source", body,
+			sc.extraFor(css, view.CodeHTML != "")); err != nil {
 			return err
 		}
 	}

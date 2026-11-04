@@ -174,6 +174,32 @@ site-wide `highlight` file (see [Configuration](configuration.md)); `off`
 turns it off everywhere. Only pages that contain a colored block carry the extra
 stylesheet.
 
+### Copying code
+
+When a page has code blocks, a small "Copy" button appears at the top right of each
+one when you hover it, or focus it with the keyboard. On a touch screen, where
+there is no hover, it is always shown, a little faded. Pressing it puts the block's
+code on the clipboard and the button says "Copied" for a moment, which is also
+announced to screen readers.
+
+- It copies exactly the code: a source page's line numbers are not included, and
+  neither is the button's own label.
+- It applies to fenced and indented code blocks in docs, blog, portal, and
+  release-notes pages, and to the files on source pages. It does not appear on
+  commit patches, the board's graph, commit messages, or issue descriptions.
+- It is added by a short script on the page, so a visitor with JavaScript turned
+  off sees no button and no broken control. If your host sets a strict
+  content-security policy that forbids inline scripts, the buttons will not appear
+  either, and nothing else is affected.
+- To leave the script out of every page, put `off` in
+  `.gitrack/config/site/copy`:
+
+```sh
+echo off > .gitrack/config/site/copy
+```
+
+Pages with no code blocks never carry the script, whatever the setting.
+
 ## Releases section
 
 Unlike portal and blog, `releases` has no content files to write. It renders
@@ -192,7 +218,14 @@ recent commits with a page each. Two optional files, `source/ref` and
 
 ## What's static and what's enhanced
 
-Everything the site needs to be usable is static HTML with inline CSS. The only
-enhancement is the board's dependency graph, drawn by Mermaid when the page has
-network access, sitting above the always-present Ready/Blocked lists. Offline or
-on a dumb host, the site is fully functional; the graph is a bonus.
+Everything the site needs to be usable is static HTML with inline CSS. Two small
+enhancements sit on top, and the site is fully functional without either:
+
+- **The board's dependency graph**, drawn by Mermaid when the page has network
+  access, above the always-present Ready/Blocked lists. This is the only part of
+  the site that ever reaches for the network.
+- **The code-block copy button**, a short inline script that adds a "Copy" button
+  to code blocks. It needs no network and no library. Where JavaScript is off, or
+  a host's security policy blocks inline scripts, the page simply has no button.
+
+Offline or on a dumb host, nothing is lost but those two conveniences.

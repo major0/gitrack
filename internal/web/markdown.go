@@ -58,6 +58,9 @@ type markdownOpts struct {
 type mdResult struct {
 	HTML template.HTML
 	CSS  template.CSS
+	// HasCode reports whether the output holds at least one code block, so the page
+	// knows to attach the copy script (ADR-0047).
+	HasCode bool
 }
 
 // renderMarkdownWith is renderMarkdown with a highlighter for fenced code.
@@ -87,7 +90,17 @@ func renderMarkdownWith(o markdownOpts, src string) (mdResult, error) {
 	if fences.highlighted > 0 {
 		res.CSS = o.hl.css
 	}
+	res.HasCode = hasCodeBlock(buf.String())
 	return res, nil
+}
+
+// hasCodeBlock reports whether rendered Markdown contains a code block: either
+// goldmark's own `<pre><code` or our highlighted `<pre class="chroma">`. Both come
+// only from our renderers: raw HTML in the source is disabled and text is escaped,
+// so a document cannot produce these strings except by actually containing a code
+// block.
+func hasCodeBlock(html string) bool {
+	return strings.Contains(html, "<pre><code") || strings.Contains(html, `<pre class="chroma">`)
 }
 
 // autolinkTransformer is a goldmark AST transformer that replaces resolvable

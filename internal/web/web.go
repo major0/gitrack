@@ -30,6 +30,7 @@ type pageData struct {
 	Nav      []navItem
 	Body     template.HTML
 	ExtraCSS template.CSS // optional page-specific stylesheet, after the theme's
+	Script   template.JS  // optional inline script, at the end of the page
 }
 
 // Generate writes the static site for repo into outDir, overwriting prior
