@@ -101,7 +101,7 @@ func (s *releasesSection) writeRelease(sc *siteContext, rel release, byID map[st
 		return err
 	}
 	return sc.renderPageExtra("releases/"+rel.slug()+".html", "../", rel.track.Title, body,
-		sc.extraFor(notes.CSS, notes.HasCode))
+		extraFor(notes.Highlighted, notes.HasCode))
 }
 
 // load returns the release tracks newest-first, plus every track by id so

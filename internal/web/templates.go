@@ -6,82 +6,33 @@ import (
 	"github.com/major0/gitrack/internal/core"
 )
 
-// baseTmpl is the site layout: inline CSS (no external stylesheet to fetch, so
-// it works from file://), a nav, and the page body. Links use {{.Root}} so a
-// page in a subdirectory resolves back to the site root on any host or file://.
-var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
+// shellTmpl is the page shell shared by every page: landmarks, the site
+// navigation as a list, and the page body. It carries structure and content only.
+// All presentation is in the stylesheet and script files under assets/, which a
+// theme supplies; the HTML is the same whichever theme is chosen (ADR-0048).
+// Links use {{.Root}} so a page in a subdirectory resolves back to the site root
+// on any host or from file://.
+var shellTmpl = template.Must(template.New("shell").Parse(`<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
-<style>
-  body{font-family:system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.5}
-  nav a{margin-right:1rem}
-  table{border-collapse:collapse;width:100%}
-  th,td{text-align:left;padding:.3rem .5rem;border-bottom:1px solid #ddd}
-  .state-closed{color:#999}
-  .ready{color:#171}
-  .blocked{color:#a40}
-  code{background:#f4f4f4;padding:0 .2rem;border-radius:3px}
-  .muted{color:#777}
-  pre.mermaid{background:#fafafa;border:1px solid #eee;padding:.5rem;overflow:auto}
-  .comment{border:1px solid #eee;border-radius:4px;padding:.4rem .6rem;margin:.5rem 0}
-  .comment .comment-body{white-space:pre-wrap}
-  .replies{margin-left:1.2rem;border-left:2px solid #eee;padding-left:.6rem}
-  ul.issues{list-style:none;padding:0}
-  ul.issues li{padding:.3rem 0;border-bottom:1px solid #f0f0f0}
-  .label{background:#eef;border-radius:3px;padding:0 .3rem;font-size:.85em}
-  blockquote{margin:.5rem 0;padding:.2rem .8rem;border-left:3px solid #ddd;color:#555}
-  pre{background:#f4f4f4;padding:.6rem;border-radius:4px;overflow:auto}
-  pre code{background:none;padding:0}
-  .post-meta{color:#777;font-size:.9em;margin:-.3rem 0 1rem}
-  ul.posts{list-style:none;padding:0}
-  ul.posts li{padding:.4rem 0;border-bottom:1px solid #f0f0f0}
-  ul.posts .date{color:#777;font-size:.9em;margin-right:.5rem}
-  .code-wrap{position:relative}
-  .copy-btn{position:absolute;top:.35rem;right:.35rem;font:inherit;font-size:.8rem;line-height:1.4;padding:.05rem .55rem;border:1px solid #bbb;border-radius:3px;background:#fff;color:#333;cursor:pointer;opacity:0;user-select:none;-webkit-user-select:none}
-  .code-wrap:hover>.copy-btn,.copy-btn:focus{opacity:1}
-  @media(hover:none){.copy-btn{opacity:.75}}
-  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .toc{border:1px solid #e4e4e4;background:#fafafa;border-radius:4px;padding:.5rem .9rem;margin:1rem 0;font-size:.95em}
-  .toc-title{margin:0 0 .3rem;font-weight:600;color:#555}
-  .toc ul{list-style:none;margin:0;padding-left:0}
-  .toc ul ul{padding-left:1.1rem}
-  .toc li{margin:.15rem 0}
-  .anchor{margin-left:.35em;font-size:0;text-decoration:none;color:#999;opacity:0}
-  .anchor::after{content:"\00b6";content:"\00b6" / "";font-size:1rem}
-  h1:hover>.anchor,h2:hover>.anchor,h3:hover>.anchor,h4:hover>.anchor,h5:hover>.anchor,h6:hover>.anchor,.anchor:focus{opacity:1}
-  @media(hover:none){.anchor{opacity:.5}}
-  .crumbs{margin:.2rem 0 .6rem}
-  table.tree td.size{text-align:right;white-space:nowrap}
-  pre.blob{counter-reset:ln;line-height:1.35}
-  pre.blob .src-line{counter-increment:ln}
-  pre.blob .src-line::before{content:counter(ln);display:inline-block;width:3.5em;margin-right:1em;text-align:right;color:#999;user-select:none}
-  pre.blob .src-line:target{background:#ffd}
-  pre.msg{white-space:pre-wrap;background:none;padding:0}
-  pre.diff .add{background:#e6ffec}
-  pre.diff .del{background:#ffebe9}
-  pre.diff .hunk{color:#06c}
-  pre.diff .hdr{color:#555;font-weight:600}
-  .stat-add{color:#171}
-  .stat-del{color:#a40}
-  .docs-layout{display:flex;gap:1.5rem;align-items:flex-start}
-  .docs-nav{flex:0 0 14rem;font-size:.95em}
-  .docs-nav ul{list-style:none;padding-left:.8rem;margin:.2rem 0}
-  .docs-nav>ul{padding-left:0}
-  .docs-nav li{margin:.15rem 0}
-  .docs-group{color:#555;font-weight:600}
-  .docs-current{font-weight:600}
-  .docs-content{flex:1 1 auto;min-width:0}
-  @media(max-width:48rem){.docs-layout{display:block}.docs-nav{margin-bottom:1rem}}
-</style>{{if .ExtraCSS}}
-<style>{{.ExtraCSS}}</style>{{end}}
-</head><body>
-<nav>{{range .Nav}}<a href="{{.Href}}">{{.Label}}</a>{{end}}</nav>
+<link rel="stylesheet" href="{{.Root}}` + themeCSSAsset + `">{{if .Highlight}}
+<link rel="stylesheet" href="{{.Root}}` + highlightAsset + `">{{end}}
+</head><body{{if .Section}} data-section="{{.Section}}"{{end}}>
+<header>
+<nav class="site-nav" aria-label="Site"><ul>
+{{range .Nav}}<li{{if .Section}} data-section="{{.Section}}"{{end}}><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a></li>
+{{end}}</ul></nav>
+</header>
+<main class="site-main">
 {{.Body}}
-<footer class="muted"><hr>Generated by gitrack &mdash; static, offline-capable (ADR-0029).</footer>{{if .Script}}
-<script>{{.Script}}</script>{{end}}
-</body></html>`))
+</main>
+<footer>
+<p>Generated by gitrack</p>
+</footer>
+{{range .Scripts}}<script src="{{$.Root}}{{.}}"></script>
+{{end}}</body></html>`))
 
 // indexBodyTmpl lists all tracks. Pure HTML, no script.
 var indexBodyTmpl = template.Must(template.New("index").Funcs(tmplFuncs).Parse(`
@@ -174,11 +125,7 @@ var boardBodyTmpl = template.Must(template.New("boardbody").Funcs(tmplFuncs).Par
 <p class="muted">The lists above are the offline view. The graph below renders when online.</p>
 <pre class="mermaid">
 {{.Mermaid}}
-</pre>
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({ startOnLoad: true });
-</script>`))
+</pre>`))
 
 var tmplFuncs = template.FuncMap{"short": short}
 
@@ -211,9 +158,9 @@ var blogIndexTmpl = template.Must(template.New("blogindex").Parse(`
 var docsBodyTmpl = template.Must(template.New("docs").Parse(`
 <div class="docs-layout">
 {{.Sidebar}}
-<main class="docs-content">
+<article class="docs-content">
 {{.ContentHTML}}
-</main>
+</article>
 </div>`))
 
 // releasesIndexTmpl lists releases newest-first (ADR-0041). It reuses the blog

@@ -9,8 +9,9 @@
 // With no config the issues section is the only one enabled with the built-in
 // theme, so the generated site matches pre-ADR-0037 output exactly.
 //
-// Core content (track list, per-track pages, the Ready/Blocked board) is pure
-// HTML with inline CSS and NO network dependency; the dependency digraph is a
+// Pages carry content and structure only. Every stylesheet and script is a file
+// under assets/, chosen by the theme, so the HTML is the same whichever theme is
+// used (ADR-0048). The site needs no network; the dependency digraph is a
 // progressive enhancement (Mermaid via CDN) above an always-present HTML
 // fallback.
 package web
@@ -25,12 +26,13 @@ import (
 // path prefix back to root (so links work from any subdirectory and file://),
 // the resolved navigation (each Href already root-prefixed), and the body.
 type pageData struct {
-	Title    string
-	Root     string // relative path to site root, e.g. "" or "../"
-	Nav      []navItem
-	Body     template.HTML
-	ExtraCSS template.CSS // optional page-specific stylesheet, after the theme's
-	Script   template.JS  // optional inline script, at the end of the page
+	Title     string
+	Root      string // relative path to site root, e.g. "" or "../"
+	Section   string // the section the page belongs to, stamped as data-section
+	Nav       []navItem
+	Body      template.HTML
+	Highlight bool     // link assets/highlight.css
+	Scripts   []string // root-relative script files, loaded at the end of the body
 }
 
 // Generate writes the static site for repo into outDir, overwriting prior
@@ -42,7 +44,7 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	th, err := newTheme(cfg.Theme)
+	th, err := loadTheme(repo, cfg.Theme)
 	if err != nil {
 		return 0, err
 	}
@@ -62,9 +64,13 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 	// the context is populated (ADR-0039).
 	sc.nav = resolveNav(sections, sc)
 	for _, s := range sections {
+		sc.section = s.name()
 		if err := s.render(sc); err != nil {
 			return 0, err
 		}
+	}
+	if err := sc.writeAssets(); err != nil {
+		return 0, err
 	}
 	return sc.trackPages, nil
 }

@@ -30,8 +30,8 @@ func TestFencedCodeIsHighlighted(t *testing.T) {
 	if !strings.Contains(html, `<span class="kd">func</span>`) {
 		t.Errorf("tokens should be classed:\n%s", html)
 	}
-	if !strings.Contains(string(res.CSS), ".chroma") {
-		t.Errorf("a page with a highlighted block needs the stylesheet, got %q", res.CSS)
+	if !res.Highlighted {
+		t.Errorf("a page with a highlighted block must report it, so it links the stylesheet")
 	}
 }
 
@@ -53,8 +53,8 @@ func TestFencesLeftPlainKeepDefaultRendering(t *testing.T) {
 		if !strings.Contains(html, c.want) {
 			t.Errorf("%s: want %q in:\n%s", name, c.want, html)
 		}
-		if strings.Contains(html, "chroma") || res.CSS != "" {
-			t.Errorf("%s: must not be highlighted or carry a stylesheet (css %q):\n%s", name, res.CSS, html)
+		if strings.Contains(html, "chroma") || res.Highlighted {
+			t.Errorf("%s: must not be highlighted or need the stylesheet:\n%s", name, html)
 		}
 	}
 }
@@ -137,7 +137,7 @@ func TestFenceBudgetFallsBackToPlainAndSkipsSpendNothing(t *testing.T) {
 	h2 := mustHighlighter(t, "github")
 	huge := strings.Repeat("x := 1\n", maxHighlightBytes/6)
 	res := renderWith(t, h2, "```go\n"+huge+"```\n")
-	if strings.Contains(string(res.HTML), "chroma") || res.CSS != "" {
+	if strings.Contains(string(res.HTML), "chroma") || res.Highlighted {
 		t.Errorf("an oversized block must stay plain with no stylesheet")
 	}
 }
@@ -186,24 +186,16 @@ func TestSiteHighlighterIsSharedAndBuiltOnce(t *testing.T) {
 	}
 }
 
-// styleBlocks returns the contents of every <style> block on a page.
-func styleBlocks(page string) []string {
-	var out []string
-	for _, m := range regexp.MustCompile(`(?s)<style>(.*?)</style>`).FindAllStringSubmatch(page, -1) {
-		out = append(out, m[1])
-	}
-	return out
+// linksHighlightCSS reports whether a page links the token stylesheet.
+func linksHighlightCSS(page string) bool {
+	return regexp.MustCompile(`<link rel="stylesheet" href="[^"]*assets/highlight\.css">`).MatchString(page)
 }
 
-// tokenCSS returns a page's token stylesheet, the second <style> block, failing
-// the test with a clear message if the page has none.
-func tokenCSS(t *testing.T, name, page string) string {
+// tokenCSS returns the site's token stylesheet, failing the test if it was not
+// written. There is one per site: it is not repeated in every page.
+func tokenCSS(t *testing.T, out string) string {
 	t.Helper()
-	blocks := styleBlocks(page)
-	if len(blocks) < 2 {
-		t.Fatalf("%s: expected the theme style plus a token stylesheet, found %d style block(s)", name, len(blocks))
-	}
-	return blocks[1]
+	return readOut(t, out, highlightAsset)
 }
 
 func TestMarkdownSectionsAttachHighlightingOnlyWhereUsed(t *testing.T) {
@@ -230,14 +222,17 @@ func TestMarkdownSectionsAttachHighlightingOnlyWhereUsed(t *testing.T) {
 		if !strings.Contains(page, `<pre class="chroma">`) {
 			t.Errorf("%s: the fence should be highlighted", rel)
 		}
-		if css := tokenCSS(t, rel, page); !strings.Contains(css, ".chroma") {
-			t.Errorf("%s: the second style block should be the chroma stylesheet", rel)
+		if !linksHighlightCSS(page) {
+			t.Errorf("%s: a highlighted page must link the token stylesheet", rel)
 		}
+	}
+	if css := tokenCSS(t, out); !strings.Contains(css, ".chroma") {
+		t.Errorf("assets/highlight.css should be the chroma stylesheet")
 	}
 	for _, rel := range without {
 		page := readOut(t, out, rel)
-		if n := len(styleBlocks(page)); n != 1 || strings.Contains(page, "chroma") {
-			t.Errorf("%s: a page without code must carry no token stylesheet (got %d style block(s))", rel, n)
+		if linksHighlightCSS(page) || strings.Contains(page, "chroma") {
+			t.Errorf("%s: a page without code must not link the token stylesheet", rel)
 		}
 	}
 }
@@ -257,20 +252,18 @@ func TestOneHighlightSettingGovernsSourceAndMarkdown(t *testing.T) {
 	if !strings.Contains(blob(out), `class="blob chroma"`) || !strings.Contains(doc(out), `<pre class="chroma">`) {
 		t.Fatalf("by default both the source page and the docs fence should be highlighted")
 	}
-	if tokenCSS(t, "source", blob(out)) != tokenCSS(t, "docs", doc(out)) {
-		t.Errorf("source and docs must share one style")
+	if !linksHighlightCSS(blob(out)) || !linksHighlightCSS(doc(out)) {
+		t.Errorf("source and docs must link the same single token stylesheet")
 	}
+	github := tokenCSS(t, out)
 
-	// a named style applies to both
+	// a named style applies to both, through that one stylesheet
 	writeSiteFile(t, repo, "highlight", "monokai\n")
 	out = generate(t, repo)
-	if tokenCSS(t, "source", blob(out)) != tokenCSS(t, "docs", doc(out)) {
-		t.Errorf("source and docs must still share one style after changing it")
+	if !linksHighlightCSS(blob(out)) || !linksHighlightCSS(doc(out)) {
+		t.Errorf("source and docs must still share the stylesheet after changing the style")
 	}
-	mono := tokenCSS(t, "docs", doc(out))
-
-	writeSiteFile(t, repo, "highlight", "github\n")
-	if gh := tokenCSS(t, "docs", doc(generate(t, repo))); gh == mono {
+	if mono := tokenCSS(t, out); mono == github {
 		t.Errorf("changing the style must change the stylesheet")
 	}
 
@@ -280,8 +273,8 @@ func TestOneHighlightSettingGovernsSourceAndMarkdown(t *testing.T) {
 	if strings.Contains(blob(out), "chroma") || strings.Contains(doc(out), "chroma") {
 		t.Errorf("highlight=off must turn off the source page and the docs fence")
 	}
-	if len(styleBlocks(doc(out))) != 1 || len(styleBlocks(blob(out))) != 1 {
-		t.Errorf("no token stylesheet when off")
+	if linksHighlightCSS(doc(out)) || linksHighlightCSS(blob(out)) {
+		t.Errorf("no token stylesheet link when off")
 	}
 }
 

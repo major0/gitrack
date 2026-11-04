@@ -52,12 +52,12 @@ type markdownOpts struct {
 	tocMin int
 }
 
-// mdResult is rendered Markdown plus the stylesheet its highlighted code needs.
-// CSS is empty unless at least one block was highlighted, so a page attaches it
-// only when it is used (ADR-0045).
+// mdResult is rendered Markdown plus what its code blocks need from the page.
 type mdResult struct {
 	HTML template.HTML
-	CSS  template.CSS
+	// Highlighted reports whether a block was highlighted, so the page links the
+	// highlight stylesheet only when it is used (ADR-0045).
+	Highlighted bool
 	// HasCode reports whether the output holds at least one code block, so the page
 	// knows to attach the copy script (ADR-0047).
 	HasCode bool
@@ -87,9 +87,7 @@ func renderMarkdownWith(o markdownOpts, src string) (mdResult, error) {
 		return mdResult{}, err
 	}
 	res := mdResult{HTML: template.HTML(buf.String())} //nolint:gosec // goldmark escapes; raw HTML disabled; links added only for resolved refs; highlighted blocks are chroma output, which escapes
-	if fences.highlighted > 0 {
-		res.CSS = o.hl.css
-	}
+	res.Highlighted = fences.highlighted > 0
 	res.HasCode = hasCodeBlock(buf.String())
 	return res, nil
 }

@@ -70,7 +70,7 @@ func TestPortalSectionRendersPagesAndHome(t *testing.T) {
 		t.Errorf("track index should move to tracks.html when portal is home: %v", err)
 	}
 	// nav shows home, the About page, and the relocated tracks link
-	if !strings.Contains(index, `href="index.html">home`) {
+	if !strings.Contains(index, `href="index.html" aria-current="page">home`) {
 		t.Errorf("nav missing home entry:\n%s", index)
 	}
 	if !strings.Contains(index, `>About Us</a>`) {

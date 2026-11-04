@@ -110,7 +110,7 @@ func (s *docsSection) writeDocPage(sc *siteContext, relPath, root, title, body s
 	if err != nil {
 		return err
 	}
-	return sc.renderPageExtra(relPath, root, title, page, sc.extraFor(md.CSS, md.HasCode))
+	return sc.renderPageExtra(relPath, root, title, page, extraFor(md.Highlighted, md.HasCode))
 }
 
 // writeLanding writes docs/index.html: the source dir's top-level index/README

@@ -214,8 +214,8 @@ func TestSourcePagesCarryHighlightingOnlyWhereUsed(t *testing.T) {
 	if !strings.Contains(goPage, `<pre class="blob chroma">`) {
 		t.Errorf("a highlighted page should be marked chroma:\n%s", goPage)
 	}
-	if strings.Count(goPage, "<style>") != 2 || !strings.Contains(goPage, ".chroma") {
-		t.Errorf("a highlighted page should carry the token stylesheet after the theme's:\n%.600s", goPage)
+	if !linksHighlightCSS(goPage) || strings.Index(goPage, "highlight.css") < strings.Index(goPage, "theme.css") {
+		t.Errorf("a highlighted page should link the token stylesheet after the theme's:\n%.600s", goPage)
 	}
 	if !strings.Contains(goPage, `<span class="kd">func</span>`) {
 		t.Errorf("tokens should be classed on the page")
@@ -224,8 +224,8 @@ func TestSourcePagesCarryHighlightingOnlyWhereUsed(t *testing.T) {
 	// pages that were not highlighted carry no extra stylesheet
 	for _, rel := range []string{"source/blob/notes.txt/index.html", "source/index.html", "source/log.html"} {
 		page := readOut(t, out, rel)
-		if strings.Count(page, "<style>") != 1 || strings.Contains(page, ".chroma") {
-			t.Errorf("%s should not carry the token stylesheet", rel)
+		if linksHighlightCSS(page) || strings.Contains(page, ".chroma") {
+			t.Errorf("%s should not link the token stylesheet", rel)
 		}
 	}
 	if txt := readOut(t, out, "source/blob/notes.txt/index.html"); strings.Contains(txt, "chroma") {
@@ -243,7 +243,7 @@ func TestSourceHighlightConfig(t *testing.T) {
 	// off: plain text, all lines present, no stylesheet
 	writeSiteFile(t, repo, "highlight", "off\n")
 	off := page(generate(t, repo))
-	if strings.Contains(off, "chroma") || strings.Count(off, "<style>") != 1 {
+	if strings.Contains(off, "chroma") || linksHighlightCSS(off) {
 		t.Errorf("highlight=off must produce plain pages:\n%.500s", off)
 	}
 	if !strings.Contains(off, `id="L1"`) {
@@ -252,17 +252,19 @@ func TestSourceHighlightConfig(t *testing.T) {
 
 	// a named style changes the stylesheet
 	writeSiteFile(t, repo, "highlight", "monokai\n")
-	mono := page(generate(t, repo))
+	monoOut := generate(t, repo)
+	mono := tokenCSS(t, monoOut)
 	writeSiteFile(t, repo, "highlight", "github\n")
-	gh := page(generate(t, repo))
+	ghOut := generate(t, repo)
+	gh := tokenCSS(t, ghOut)
 	if mono == gh || !strings.Contains(mono, ".chroma") {
 		t.Errorf("monokai and github should render different stylesheets")
 	}
 
 	// an unknown style neither fails nor changes the default output
 	writeSiteFile(t, repo, "highlight", "no-such-style\n")
-	unknown := page(generate(t, repo))
-	if unknown != gh {
+	unknownOut := generate(t, repo)
+	if tokenCSS(t, unknownOut) != gh || page(unknownOut) != page(ghOut) {
 		t.Errorf("an unknown style should produce the default (github) output")
 	}
 }

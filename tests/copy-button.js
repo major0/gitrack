@@ -111,8 +111,11 @@ function runPage(siteDir, rel, mode, transform) {
   let page = fs.readFileSync(path.join(siteDir, rel), 'utf8');
   if (transform) { page = transform(page); }
   const harness = page.replace('<head>', '<head>' + prelude(mode)).replace(/<\/body>/, driver + '</body>');
-  const file = path.join(scratch, rel.replace(/[\/]/g, '_') + '.' + mode + (transform ? '.mixed' : '') + '.html');
+  // The harness page sits beside the real one, so the relative links to assets/
+  // resolve exactly as they do on the site; it is removed once Chrome has run.
+  const file = path.join(siteDir, path.dirname(rel), '__harness-' + mode + (transform ? '-mixed' : '') + '.html');
   fs.writeFileSync(file, harness);
+  process.on('exit', function () { fs.rmSync(file, { force: true }); });
   const r = spawnSync(chrome, ['--headless=new', '--no-sandbox', '--disable-gpu', '--virtual-time-budget=9000',
     '--dump-dom', 'file://' + file], { encoding: 'utf8', timeout: 90000 });
   if (r.status !== 0) { return { error: 'chrome exited ' + r.status + ': ' + (r.stderr || '').slice(0, 300) }; }
@@ -201,7 +204,7 @@ if (tr.error) { check(false, 'track page ran', tr.error); } else {
 console.log('== with the button turned off ==');
 for (const rel of ['docs/guide.html', 'source/blob/main.go/index.html']) {
   const html = fs.readFileSync(path.join(offDir, rel), 'utf8');
-  check(!html.includes('<script>') && !html.includes('copy-btn\'') && !html.includes('writeText'), rel + ': no script on the page at all', 'script present');
+  check(!html.includes('<script') && !html.includes('gitrack.js'), rel + ': no script element and no link to the script', 'script present');
   const r = runPage(offDir, rel, 'api');
   check(!r.error && r.count === 0, rel + ': no buttons in a real browser', JSON.stringify(r).slice(0, 200));
 }

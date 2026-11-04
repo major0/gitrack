@@ -8,10 +8,8 @@ import (
 	"github.com/major0/gitrack/internal/core"
 )
 
-// hasCopyScript reports whether a page carries the copy-button script. The marker
-// is the button's accessible name, which exists only inside the script; the class
-// name would also match the stylesheet every page carries.
-func hasCopyScript(page string) bool { return strings.Contains(page, "Copy code to clipboard") }
+// hasCopyScript reports whether a page loads the copy-button script.
+func hasCopyScript(page string) bool { return strings.Contains(page, copyAsset+`"></script>`) }
 
 func TestCopyScriptContainsNothingThatCouldBreakOrLeakOut(t *testing.T) {
 	s := copyScript
@@ -55,22 +53,26 @@ func TestHasCodeBlock(t *testing.T) {
 	}
 }
 
-func TestExtraForOnlyAttachesTheScriptWhenThereIsCode(t *testing.T) {
+func TestScriptsForOnlyListsTheCopyScriptWhenThereIsCode(t *testing.T) {
 	repo, err := core.Init(t.TempDir())
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	sc := &siteContext{repo: repo}
-	if x := sc.extraFor("body{}", false); x.Script != "" || x.CSS != "body{}" {
-		t.Errorf("no code: no script, and the stylesheet passes through, got %+v", x)
+	th, err := loadTheme(repo, "")
+	if err != nil {
+		t.Fatalf("loadTheme: %v", err)
 	}
-	if x := sc.extraFor("", true); x.Script == "" {
-		t.Errorf("code present and the button on: the script is expected")
+	sc := &siteContext{repo: repo, theme: th}
+	if got := sc.scriptsFor(extraFor(true, false)); len(got) != 0 {
+		t.Errorf("no code: no script, got %v", got)
+	}
+	if got := sc.scriptsFor(extraFor(false, true)); len(got) != 1 || got[0] != copyAsset {
+		t.Errorf("code present and the button on: the copy script is expected, got %v", got)
 	}
 	writeSiteFile(t, repo, "copy", "off\n")
-	off := &siteContext{repo: repo}
-	if x := off.extraFor("body{}", true); x.Script != "" || x.CSS != "body{}" {
-		t.Errorf("button off: no script, stylesheet unaffected, got %+v", x)
+	off := &siteContext{repo: repo, theme: th}
+	if got := off.scriptsFor(extraFor(true, true)); len(got) != 0 {
+		t.Errorf("button off: no script, got %v", got)
 	}
 }
 
@@ -124,12 +126,12 @@ func TestPagesGetTheScriptOnlyWhereThereIsCode(t *testing.T) {
 		if !hasCopyScript(page) {
 			t.Errorf("%s holds a code block and should carry the copy script", rel)
 		}
-		if n := strings.Count(page, "<script>"); n != 1 {
-			t.Errorf("%s: want exactly one inline script, got %d", rel, n)
+		if n := strings.Count(page, "<script"); n != 1 {
+			t.Errorf("%s: want exactly one script element, got %d", rel, n)
 		}
-		// the script is the last thing before the document ends, after the footer
-		if !regexp.MustCompile(`(?s)</footer>\n<script>.*</script>\n</body></html>\s*$`).MatchString(page) {
-			t.Errorf("%s: the script should sit after the footer, at the end of the body", rel)
+		// a script file, never inline, and the last thing before the document ends
+		if !regexp.MustCompile(`(?s)</footer>\n<script src="[./]*assets/gitrack\.js"></script>\n</body></html>\s*$`).MatchString(page) {
+			t.Errorf("%s: the script should be a file loaded after the footer, at the end of the body", rel)
 		}
 	}
 	for _, rel := range without {
@@ -176,13 +178,14 @@ func TestCopyScriptCoexistsWithHighlightingAndTOC(t *testing.T) {
 	}
 	enableSections(t, repo, sectionDocs)
 	writeRepoFile(t, repo, "docs/guide.md", "# Guide\n\n"+numberedSectionsWithFence(9))
-	page := readOut(t, generate(t, repo), "docs/guide.html")
+	out := generate(t, repo)
+	page := readOut(t, out, "docs/guide.html")
 	for what, ok := range map[string]bool{
 		"the highlighted block":   strings.Contains(page, `<pre class="chroma">`),
-		"the token stylesheet":    len(styleBlocks(page)) == 2,
+		"the token stylesheet":    linksHighlightCSS(page),
 		"the table of contents":   strings.Contains(page, `<nav class="toc"`),
 		"the copy script":         hasCopyScript(page),
-		"the button's own styles": strings.Contains(styleBlocks(page)[0], ".copy-btn"),
+		"the button's own styles": strings.Contains(readOut(t, out, themeCSSAsset), ".copy-btn"),
 	} {
 		if !ok {
 			t.Errorf("expected %s on a long docs page with code", what)

@@ -98,10 +98,13 @@ func TestDisabledSectionLeavesNoNav(t *testing.T) {
 }
 
 func TestNavWithRoot(t *testing.T) {
-	nav := []navItem{{Label: "issues", Href: "issues.html"}}
-	got := navWithRoot(nav, "../")
-	if got[0].Href != "../issues.html" {
-		t.Errorf("Href = %q, want ../issues.html", got[0].Href)
+	nav := []navItem{{Label: "issues", Href: "issues.html", Section: "issues"}, {Label: "board", Href: "board.html"}}
+	got := navWithRoot(nav, "../", "issues.html")
+	if got[0].Href != "../issues.html" || got[0].Section != "issues" {
+		t.Errorf("got %+v, want a root-prefixed href that keeps its section", got[0])
+	}
+	if !got[0].Current || got[1].Current {
+		t.Errorf("only the page's own entry is current: %+v", got)
 	}
 	// original is not mutated
 	if nav[0].Href != "issues.html" {

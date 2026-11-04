@@ -61,9 +61,15 @@ func TestGenerateStaticSite(t *testing.T) {
 		t.Error("index must not reference any network URL")
 	}
 
-	// inline CSS, no external stylesheet to fetch
-	if strings.Contains(index, "<link") {
-		t.Error("index should inline CSS, not <link> an external stylesheet")
+	// presentation is a relative stylesheet file, never inline
+	if !strings.Contains(index, `<link rel="stylesheet" href="assets/theme/theme.css">`) {
+		t.Error("index should link the theme stylesheet by a relative path")
+	}
+	if strings.Contains(index, "<style") || strings.Contains(index, "style=") {
+		t.Error("index must carry no inline CSS")
+	}
+	if _, err := os.Stat(filepath.Join(out, "assets", "theme", "theme.css")); err != nil {
+		t.Errorf("the theme stylesheet must be written: %v", err)
 	}
 
 	// board: Ready/Blocked lists are present as the offline-complete fallback

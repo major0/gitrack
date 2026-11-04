@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 
@@ -25,6 +26,11 @@ const (
 type navItem struct {
 	Label string
 	Href  string
+	// Section is the section the entry belongs to, a styling hook: a theme can
+	// mark the current section's entries by matching the page's data-section.
+	Section string
+	// Current is set on a page's own entry, rendered as aria-current="page".
+	Current bool
 }
 
 // section renders one part of the site (ADR-0036/0037). Sections are
@@ -54,6 +60,11 @@ type siteContext struct {
 	outDir string
 	nav    []navItem
 	theme  *theme
+	// section is the name of the section currently rendering, stamped on each
+	// page as data-section.
+	section string
+	// used records which optional assets pages refer to; see writeAssets.
+	used assetUse
 	// homeSection is the name of the section that owns the site root index.html
 	// (the first enabled section, ADR-0039). A section compares its own name to
 	// decide whether it writes index.html or its secondary path.
@@ -122,7 +133,10 @@ func buildSections(cfg siteConfig) []section {
 func resolveNav(sections []section, sc *siteContext) []navItem {
 	var nav []navItem
 	for _, s := range sections {
-		nav = append(nav, s.nav(sc)...)
+		for _, n := range s.nav(sc) {
+			n.Section = s.name()
+			nav = append(nav, n)
+		}
 	}
 	return nav
 }
@@ -168,30 +182,39 @@ func (sc *siteContext) renderPage(relPath, root, title string, body template.HTM
 	return sc.renderPageExtra(relPath, root, title, body, pageExtra{})
 }
 
-// renderPageExtra is renderPage with extras for a page that needs more than the
-// theme: an extra stylesheet emitted after the theme's own (ADR-0043), and an
-// inline script (ADR-0047).
+// renderPageExtra is renderPage for a page that also uses the highlighting
+// stylesheet, the copy script or the board script (ADR-0043, ADR-0047). They are
+// linked as files under assets/, never inlined (ADR-0048).
 func (sc *siteContext) renderPageExtra(relPath, root, title string, body template.HTML, x pageExtra) error {
-	data := pageData{
-		Title:    title,
-		Root:     root,
-		Nav:      navWithRoot(sc.nav, root),
-		Body:     body,
-		ExtraCSS: x.CSS,
-		Script:   x.Script,
+	if x.Highlight {
+		sc.used.highlight = true
 	}
-	if err := sc.theme.render(sc.outDir, relPath, data); err != nil {
+	data := pageData{
+		Title:     title,
+		Root:      root,
+		Section:   sc.section,
+		Nav:       navWithRoot(sc.nav, root, relPath),
+		Body:      body,
+		Highlight: x.Highlight,
+		Scripts:   sc.scriptsFor(x),
+	}
+	var buf bytes.Buffer
+	if err := shellTmpl.Execute(&buf, data); err != nil {
 		return fmt.Errorf("rendering %s: %w", relPath, err)
+	}
+	if err := writeAsset(sc.outDir, relPath, buf.Bytes()); err != nil {
+		return err
 	}
 	return nil
 }
 
 // navWithRoot returns a copy of nav with each Href prefixed by root so links
-// resolve from a page living root levels below the site root.
-func navWithRoot(nav []navItem, root string) []navItem {
+// resolve from a page living root levels below the site root, and the entry for
+// the page itself (relPath) marked current.
+func navWithRoot(nav []navItem, root, relPath string) []navItem {
 	out := make([]navItem, len(nav))
 	for i, n := range nav {
-		out[i] = navItem{Label: n.Label, Href: root + n.Href}
+		out[i] = navItem{Label: n.Label, Href: root + n.Href, Section: n.Section, Current: n.Href == relPath}
 	}
 	return out
 }

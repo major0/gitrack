@@ -202,7 +202,7 @@ func (s *issuesSection) writeBoard(sc *siteContext, board *core.Board) error {
 	if err != nil {
 		return err
 	}
-	return sc.renderPage("board.html", "", "gitrack board", body)
+	return sc.renderPageExtra("board.html", "", "gitrack board", body, pageExtra{Board: true})
 }
 
 func (s *issuesSection) writeTrack(sc *siteContext, t *core.Track, shippedIn []releaseRef) error {

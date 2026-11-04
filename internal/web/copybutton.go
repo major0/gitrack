@@ -1,7 +1,6 @@
 package web
 
 import (
-	"html/template"
 	"path/filepath"
 	"strings"
 
@@ -12,11 +11,13 @@ import (
 // off, anything else (or no file) leaves it on.
 const copyConfigFile = siteConfigDir + "/copy"
 
-// pageExtra is what a page needs beyond the theme: an extra stylesheet and an
-// extra inline script. Both are empty for most pages.
+// pageExtra is what a page needs beyond the theme: the syntax-highlighting
+// stylesheet, the copy script (for pages with code blocks), or the board script.
+// All are false for most pages.
 type pageExtra struct {
-	CSS    template.CSS
-	Script template.JS
+	Highlight bool
+	Code      bool
+	Board     bool
 }
 
 // copyScript adds a "Copy" button to every code block on the page (ADR-0047). It
@@ -120,12 +121,9 @@ func (sc *siteContext) copyEnabled() bool {
 	return sc.copyOn
 }
 
-// extraFor builds a page's extras: its stylesheet, and the copy script when the
-// page has code blocks and the button is not turned off.
-func (sc *siteContext) extraFor(css template.CSS, hasCode bool) pageExtra {
-	x := pageExtra{CSS: css}
-	if hasCode && sc.copyEnabled() {
-		x.Script = template.JS(copyScript) //nolint:gosec // a constant defined in this file, never built from content
-	}
-	return x
+// extraFor builds a page's extras: whether it uses the highlight stylesheet and
+// whether it has code blocks (the copy script is attached to those unless the
+// button is turned off).
+func extraFor(highlighted, hasCode bool) pageExtra {
+	return pageExtra{Highlight: highlighted, Code: hasCode}
 }

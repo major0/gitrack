@@ -69,7 +69,7 @@ func (s *blogSection) render(sc *siteContext) error {
 		if err != nil {
 			return err
 		}
-		if err := sc.renderPageExtra("blog/"+p.slug+".html", "../", p.title, rendered, sc.extraFor(md.CSS, md.HasCode)); err != nil {
+		if err := sc.renderPageExtra("blog/"+p.slug+".html", "../", p.title, rendered, extraFor(md.Highlighted, md.HasCode)); err != nil {
 			return err
 		}
 	}

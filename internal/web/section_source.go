@@ -377,14 +377,10 @@ func (s *sourceSection) writeBlobs(sc *siteContext, snap *sourceSnapshot, files 
 		if err != nil {
 			return err
 		}
-		// The token stylesheet rides only on pages that were highlighted, so tree,
-		// log, and plain-text pages carry no extra weight (ADR-0043).
-		var css template.CSS
-		if view.Highlighted {
-			css = hl.css
-		}
+		// The token stylesheet is linked only from pages that were highlighted, so
+		// tree, log, and plain-text pages carry no extra weight (ADR-0043).
 		if err := sc.renderPageExtra(page.file, root, e.Path+" - source", body,
-			sc.extraFor(css, view.CodeHTML != "")); err != nil {
+			extraFor(view.Highlighted, view.CodeHTML != "")); err != nil {
 			return err
 		}
 	}
