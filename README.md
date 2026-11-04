@@ -11,7 +11,7 @@ The goal is a tracker with **no hosted service** — sync through any git remote
 (shared drive, S3 bucket, drop-box, ssh, IPFS) and serve the views as **static
 content** from a dumb host or straight off disk. No server to own, patch, or
 trust; a far smaller attack surface; and less energy than an always-on hosted
-app. See [`docs/VISION.md`](docs/VISION.md) and ADR-0029.
+app. See [`docs/VISION.md`](docs/VISION.md).
 
 This is a net-new project inspired by the ideas in the original shell-era
 gitrack — now archived at
@@ -20,7 +20,7 @@ broader family of VCS-embedded trackers (git-bug, BugsEverywhere, Ditz,
 driusan/bug). The
 **on-disk format is the product** (see `docs/FORMAT.md`); the CLI is one
 consumer of it. The implementation is **Go**, distributed as a single binary
-and invoked as a `git track` subcommand (ADR-0015).
+and invoked as a `git track` subcommand.
 
 ## Status
 
@@ -55,11 +55,11 @@ alone. The man page is generated from the CLI's own command data
 ## Planned surface
 
 - A Go CLI shipped as `git-track` on `PATH`, invoked as `git track` by git's
-  native subcommand dispatch (ADR-0016), for creating and updating tracks and
+  native subcommand dispatch, for creating and updating tracks and
   viewing the tracker.
 - A statically rendered web view and issues view — self-contained output that
   deploys to any dumb host (S3, shared drive, Pages, IPFS) or opens as `file://`,
-  with no runtime server (ADR-0029).
+  with no runtime server.
 - GitHub-style autolinked references across the web and issue views.
 - Project boards and roadmaps with a digraph of *unblocked work* — already built:
   `git track board` (text, `--mermaid`, `--dot`) and the `/board` page in
@@ -71,7 +71,6 @@ alone. The man page is generated from the CLI's own command data
 - [`docs/FORMAT.md`](docs/FORMAT.md) — the authoritative on-disk format spec.
 - [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) — survey of prior trackers and the
   lessons taken from each.
-- [`docs/adr/`](docs/adr/) — architecture decision records.
 
 ## License
 
