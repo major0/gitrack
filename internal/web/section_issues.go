@@ -120,9 +120,41 @@ func loadTracks(repo *core.Repo) ([]*core.Track, error) {
 type trackView struct {
 	Track     *core.Track
 	DescHTML  template.HTML
-	Mentions  []core.Mention
+	Mentions  []mentionView
 	Comments  []*commentNode
 	ShippedIn []releaseRef
+}
+
+// mentionView is a commit that mentions a track. Href is set only when that
+// commit has a page in the source section; otherwise the sha is plain text.
+type mentionView struct {
+	Short   string
+	Verb    string
+	Subject string
+	Href    string
+}
+
+// mentionViews links each mention to its source commit page when one will exist
+// (ADR-0042): the source section is enabled and the commit is within its log.
+// An older commit, or one outside the snapshot's history, stays plain text so
+// the page never carries a dead link. The link is relative to track/<id>.html.
+func mentionViews(sc *siteContext, mentions []core.Mention) ([]mentionView, error) {
+	var inLog map[string]bool
+	if sc.sourceEnabled {
+		_, _, set, err := sc.sourceHistory()
+		if err != nil {
+			return nil, err
+		}
+		inLog = set // nil when there is nothing to browse; lookups are then false
+	}
+	out := make([]mentionView, len(mentions))
+	for i, m := range mentions {
+		out[i] = mentionView{Short: m.Short, Verb: m.Verb, Subject: m.Subject}
+		if inLog[m.SHA] {
+			out[i].Href = "../" + commitPage(m.SHA).href
+		}
+	}
+	return out, nil
 }
 
 func (s *issuesSection) writeIndex(sc *siteContext, tracks []*core.Track) error {
@@ -180,6 +212,10 @@ func (s *issuesSection) writeTrack(sc *siteContext, t *core.Track, shippedIn []r
 	if err != nil {
 		return err
 	}
+	linked, err := mentionViews(sc, mentions)
+	if err != nil {
+		return err
+	}
 	comments, err := sc.repo.ListComments(t.ID)
 	if err != nil {
 		return err
@@ -187,7 +223,7 @@ func (s *issuesSection) writeTrack(sc *siteContext, t *core.Track, shippedIn []r
 	view := trackView{
 		Track:     t,
 		DescHTML:  autolink(sc.repo, "../", t.Description),
-		Mentions:  mentions,
+		Mentions:  linked,
 		Comments:  buildThread(sc.repo, "../", comments),
 		ShippedIn: shippedIn,
 	}

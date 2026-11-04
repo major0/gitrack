@@ -64,6 +64,12 @@ type siteContext struct {
 	// issuesEnabled reports whether the issues section is enabled. Other sections
 	// link to track pages only when those pages will exist (ADR-0041).
 	issuesEnabled bool
+	// sourceEnabled reports whether the source section is enabled, so track pages
+	// can link a mentioning commit to its source page (ADR-0042).
+	sourceEnabled bool
+	// srcMemo caches the source snapshot and log for this generation, so the
+	// source section and the track pages agree on which commit pages exist.
+	srcMemo sourceMemo
 	// releasesEnabled reports whether the releases section is enabled, so track
 	// pages can link "shipped in" to the release page (ADR-0041).
 	releasesEnabled bool

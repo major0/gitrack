@@ -88,6 +88,19 @@ is skipped, so a malformed tree can never write outside the output directory.
   stay offline (ADR-0038), and belongs with the planned per-language options.
 - `git track serve` does not serve this section; it is part of `web` only.
 
+### Tracks link to the commits that mention them
+A track page already lists the commits that mention it (ADR-0031). When the
+source section is enabled, each listed commit links to its commit page, so the
+tracker and the code cross-reference both ways (a `#ref` in a commit message
+already links to the track).
+
+Only a commit that really has a page is linked: one inside the rendered log of
+the snapshot. A mention of an older commit, or of a commit the snapshot ref does
+not contain, stays plain text, so a track page never carries a dead link. To make
+that exact, the snapshot and log are resolved once per generation and shared. The
+source section, the navigation, and the track pages all read the same set of
+commit ids, so they cannot disagree about which pages exist or run git twice.
+
 ## Consequences
 - Easier: a project gets a browsable, linkable view of its code and recent
   history with no server, on the same offline, host-neutral footing as the rest
@@ -122,3 +135,6 @@ is skipped, so a malformed tree can never write outside the output directory.
 - [ ] A patch over the limit is truncated with a note, and the git process stops.
 - [ ] All hrefs are relative and URL-escaped, so paths containing spaces, `#`, or
       `%` work.
+- [ ] With the source section on, a track's mentioning commits link to commit pages
+      that exist. A commit outside the rendered log, outside the snapshot ref's
+      history, or any commit when the section is off, is plain text.

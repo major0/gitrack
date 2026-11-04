@@ -43,6 +43,11 @@ A `#ref` written in a commit message links to its track, the same as anywhere
 else on the site. So `Closes #login-flow` in a commit message becomes a link to
 that issue's page.
 
+The link works the other way too. A track's page lists the commits that mention
+it, and with the source section enabled each of those commits links to its commit
+page. A commit that has no page stays plain text: that means one older than the
+log (see below), or one that is not in the history of the ref you snapshot.
+
 Binary files show their size instead of content. A symbolic link shows its
 target. A submodule is listed but has no page.
 

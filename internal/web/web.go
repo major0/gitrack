@@ -54,6 +54,7 @@ func Generate(repo *core.Repo, outDir string) (int, error) {
 
 		issuesEnabled:   hasSection(sections, sectionIssues),
 		releasesEnabled: hasSection(sections, sectionReleases),
+		sourceEnabled:   hasSection(sections, sectionSource),
 	}
 	// Nav depends on home-ownership and sibling sections, so resolve it after
 	// the context is populated (ADR-0039).

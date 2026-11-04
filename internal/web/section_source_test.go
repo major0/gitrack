@@ -350,3 +350,81 @@ func TestSourceHelpers(t *testing.T) {
 		t.Errorf("humanSize(2048) = %q", got)
 	}
 }
+
+// assertMentionLink checks how a track page shows one mentioning commit: linked
+// to a commit page that really exists in the output, or plain with no link.
+func assertMentionLink(t *testing.T, page, out string, m core.Mention, linked bool) {
+	t.Helper()
+	link := `<a href="../source/commit/` + m.SHA + `.html"><code>` + m.Short + `</code></a>`
+	if linked {
+		if !strings.Contains(page, link) {
+			t.Errorf("mention %s should link to its commit page:\n%s", m.Short, page)
+		}
+		if _, err := os.Stat(filepath.Join(out, "source", "commit", m.SHA+".html")); err != nil {
+			t.Errorf("mention %s links to a commit page that does not exist: %v", m.Short, err)
+		}
+		return
+	}
+	// the unlinked form is byte-for-byte the markup this list had before linking existed
+	if !strings.Contains(page, "<li><code>"+m.Short+"</code> <b>") {
+		t.Errorf("mention %s should still be listed in the original plain form:\n%s", m.Short, page)
+	}
+	if strings.Contains(page, "source/commit/"+m.SHA) {
+		t.Errorf("mention %s has no commit page and must not link:\n%s", m.Short, page)
+	}
+}
+
+func TestTrackMentionsLinkToSourceCommitPages(t *testing.T) {
+	repo, dir := newSourceRepo(t)
+	id, err := repo.Create(core.NewTrackOpts{Title: "Parser fix"})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	slug, _ := repo.GetField(id, "slug")
+
+	writeRepoText(t, dir, "a.txt", "1\n")
+	early := commitAll(t, dir, "2025-01-01T00:00:00Z", "start work on #"+slug)
+	srcGit(t, dir, nil, "tag", "v1")
+	writeRepoText(t, dir, "a.txt", "2\n")
+	commitAll(t, dir, "2025-01-02T00:00:00Z", "an unrelated change")
+	writeRepoText(t, dir, "a.txt", "3\n")
+	late := commitAll(t, dir, "2025-01-03T00:00:00Z", "Fix it\n\ncloses #"+slug)
+
+	mentions, err := repo.Mentions(id)
+	if err != nil {
+		t.Fatalf("Mentions: %v", err)
+	}
+	by := map[string]core.Mention{}
+	for _, m := range mentions {
+		by[m.SHA] = m
+	}
+	if len(by) != 2 || by[early].SHA == "" || by[late].SHA == "" {
+		t.Fatalf("expected the early and late commits to mention the track, got %+v", mentions)
+	}
+	trackPage := func(out string) string { return readOut(t, out, "track/"+id+".html") }
+
+	// 1. issues + source, default log: both commits are in the log, so both link
+	enableSections(t, repo, sectionIssues, sectionSource)
+	out := generate(t, repo)
+	assertMentionLink(t, trackPage(out), out, by[early], true)
+	assertMentionLink(t, trackPage(out), out, by[late], true)
+
+	// 2. a log of one commit holds only HEAD: the older mention is plain text
+	writeSiteFile(t, repo, "source/commits", "1\n")
+	out = generate(t, repo)
+	assertMentionLink(t, trackPage(out), out, by[late], true)
+	assertMentionLink(t, trackPage(out), out, by[early], false)
+
+	// 3. a snapshot of the older tag: the later commit is not in its history
+	writeSiteFile(t, repo, "source/commits", "100\n")
+	writeSiteFile(t, repo, "source/ref", "v1\n")
+	out = generate(t, repo)
+	assertMentionLink(t, trackPage(out), out, by[early], true)
+	assertMentionLink(t, trackPage(out), out, by[late], false)
+
+	// 4. without the source section there are no commit pages, so nothing links
+	enableSections(t, repo, sectionIssues)
+	out = generate(t, repo)
+	assertMentionLink(t, trackPage(out), out, by[early], false)
+	assertMentionLink(t, trackPage(out), out, by[late], false)
+}

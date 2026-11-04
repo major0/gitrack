@@ -87,7 +87,9 @@ closing deliberate and local.
 A track's **mentions** are derived from git history (never stored): commits
 whose message references the track via `#<handle>`, classified by the governing
 keyword. `git track show` and the track's web page list them (short sha + verb +
-subject), so the source tree cross-references the tracker.
+subject), so the source tree cross-references the tracker. On the website, when
+the `source` section is enabled, each listed commit links to its commit page
+(see [Browsing source](source.md)).
 
 A track's **referenced-by** is likewise derived — the union of commits that
 touched the track's directory and code commits that opted in with a

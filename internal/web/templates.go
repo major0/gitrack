@@ -124,7 +124,7 @@ var trackBodyTmpl = template.Must(template.New("track").Funcs(tmplFuncs).Parse(`
 {{if .Track.Description}}<h2>Description</h2><pre>{{.DescHTML}}</pre>{{end}}
 {{if .Mentions}}<h2>Mentions</h2>
 <ul>
-{{range .Mentions}}<li><code>{{.Short}}</code> <b>{{.Verb}}</b> &mdash; {{.Subject}}</li>
+{{range .Mentions}}<li>{{if .Href}}<a href="{{.Href}}"><code>{{.Short}}</code></a>{{else}}<code>{{.Short}}</code>{{end}} <b>{{.Verb}}</b> &mdash; {{.Subject}}</li>
 {{end}}</ul>{{end}}
 {{if .Comments}}<h2>Comments</h2>
 {{range .Comments}}{{template "comment" .}}{{end}}

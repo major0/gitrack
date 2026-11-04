@@ -43,10 +43,39 @@ type sourceSnapshot struct {
 	commits int
 }
 
-// snapshot resolves the configured ref. It returns nil, nil when there is
+// sourceMemo is the snapshot and log resolved once per generation.
+type sourceMemo struct {
+	loaded  bool
+	snap    *sourceSnapshot
+	commits []gitsrc.Commit
+	inLog   map[string]bool // full shas that get a commit page
+	err     error
+}
+
+// sourceHistory returns the snapshot, the logged commits, and the set of commit
+// shas that will have a page. It asks git once and caches the answer, so the
+// nav, the source section, and the track pages' mention links all see the same
+// commits (ADR-0042). snap is nil when there is nothing to browse.
+func (sc *siteContext) sourceHistory() (*sourceSnapshot, []gitsrc.Commit, map[string]bool, error) {
+	m := &sc.srcMemo
+	if !m.loaded {
+		m.loaded = true
+		m.snap, m.err = (&sourceSection{}).resolveSnapshot(sc)
+		if m.err == nil && m.snap != nil {
+			m.commits, m.err = m.snap.git.Log(m.snap.sha, m.snap.commits)
+			m.inLog = make(map[string]bool, len(m.commits))
+			for _, c := range m.commits {
+				m.inLog[c.SHA] = true
+			}
+		}
+	}
+	return m.snap, m.commits, m.inLog, m.err
+}
+
+// resolveSnapshot resolves the configured ref. It returns nil, nil when there is
 // nothing to browse (not a git repository, no commits, or an unresolvable ref),
 // so the section emits nothing (ADR-0026).
-func (s *sourceSection) snapshot(sc *siteContext) (*sourceSnapshot, error) {
+func (s *sourceSection) resolveSnapshot(sc *siteContext) (*sourceSnapshot, error) {
 	base := filepath.Join(sc.repo.Root, core.Dir, sourceConfigDir)
 	ref, err := readConfigValue(filepath.Join(base, "ref"), "HEAD")
 	if err != nil {
@@ -73,7 +102,7 @@ func (s *sourceSection) snapshot(sc *siteContext) (*sourceSnapshot, error) {
 
 // nav contributes one source entry, only when there is something to browse.
 func (s *sourceSection) nav(sc *siteContext) []navItem {
-	snap, err := s.snapshot(sc)
+	snap, _, _, err := sc.sourceHistory()
 	if err != nil || snap == nil {
 		return nil
 	}
@@ -83,15 +112,11 @@ func (s *sourceSection) nav(sc *siteContext) []navItem {
 // render writes the tree and blob pages for the snapshot, then the log and a
 // page per logged commit.
 func (s *sourceSection) render(sc *siteContext) error {
-	snap, err := s.snapshot(sc)
+	snap, commits, inLog, err := sc.sourceHistory()
 	if err != nil || snap == nil {
 		return err
 	}
 	files, err := snap.git.Files(snap.sha)
-	if err != nil {
-		return err
-	}
-	commits, err := snap.git.Log(snap.sha, snap.commits)
 	if err != nil {
 		return err
 	}
@@ -104,7 +129,7 @@ func (s *sourceSection) render(sc *siteContext) error {
 	if err := s.writeBlobs(sc, snap, valid); err != nil {
 		return err
 	}
-	return s.writeHistory(sc, snap, commits)
+	return s.writeHistory(sc, snap, commits, inLog)
 }
 
 // ---- addressing ------------------------------------------------------------
@@ -410,12 +435,7 @@ type commitView struct {
 	Truncated   bool
 }
 
-func (s *sourceSection) writeHistory(sc *siteContext, snap *sourceSnapshot, commits []gitsrc.Commit) error {
-	inLog := make(map[string]bool, len(commits))
-	for _, c := range commits {
-		inLog[c.SHA] = true
-	}
-
+func (s *sourceSection) writeHistory(sc *siteContext, snap *sourceSnapshot, commits []gitsrc.Commit, inLog map[string]bool) error {
 	logRoot := logPage.root()
 	rows := make([]logRow, len(commits))
 	for i, c := range commits {
