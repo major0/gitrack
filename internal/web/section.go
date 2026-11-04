@@ -70,6 +70,10 @@ type siteContext struct {
 	// srcMemo caches the source snapshot and log for this generation, so the
 	// source section and the track pages agree on which commit pages exist.
 	srcMemo sourceMemo
+	// hlMemo is the site-wide highlighter, built once on first use. The source
+	// browser and Markdown code blocks share it, so they use one style and spend
+	// one budget (ADR-0045).
+	hlMemo highlighterMemo
 	// releasesEnabled reports whether the releases section is enabled, so track
 	// pages can link "shipped in" to the release page (ADR-0041).
 	releasesEnabled bool

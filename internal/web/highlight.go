@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
+	"github.com/major0/gitrack/internal/core"
 )
 
 const (
@@ -34,6 +36,45 @@ const (
 // highlighting is abandoned for plain text. It bounds a hostile file that makes
 // the lexer slow without making it fail. A variable so a test can exhaust it.
 var highlightBudget = 2 * time.Second
+
+// highlightConfigFile is the site-wide highlighting setting (ADR-0045): "off", or
+// a chroma style name. It covers the source browser and Markdown code blocks.
+const highlightConfigFile = siteConfigDir + "/highlight"
+
+// highlighterMemo caches the site's highlighter for one generation.
+type highlighterMemo struct {
+	loaded bool
+	hl     *highlighter
+	err    error
+}
+
+// highlighter returns the site-wide highlighter, or nil when highlighting is
+// turned off. It is built on first use and shared, so every page draws on the
+// same style and the same total budget.
+func (sc *siteContext) highlighter() (*highlighter, error) {
+	m := &sc.hlMemo
+	if !m.loaded {
+		m.loaded = true
+		setting, err := readConfigValue(filepath.Join(sc.repo.Root, core.Dir, highlightConfigFile), defaultHighlightStyle)
+		if err != nil {
+			m.err = err
+		} else {
+			m.hl, m.err = newHighlighter(setting)
+		}
+	}
+	return m.hl, m.err
+}
+
+// markdown renders Markdown for a page with the site's highlighter, so fenced
+// code blocks are colored. The result's CSS is non-empty only if a block was
+// highlighted; the caller attaches it to the page (ADR-0045).
+func (sc *siteContext) markdown(root, src string) (mdResult, error) {
+	hl, err := sc.highlighter()
+	if err != nil {
+		return mdResult{}, err
+	}
+	return renderMarkdownWith(markdownOpts{repo: sc.repo, root: root, hl: hl}, src)
+}
 
 // highlighter turns source text into per-line HTML using chroma, as classed
 // spans plus one stylesheet. It runs at generation time and emits no script, so
@@ -82,20 +123,33 @@ func newHighlighter(setting string) (*highlighter, error) {
 // (what *.txt maps to), which has nothing to color and would only attach a
 // stylesheet to an ordinary text page.
 func lexerFor(filePath string) chroma.Lexer {
-	l := lexers.Match(path.Base(filePath))
+	return usableLexer(lexers.Match(path.Base(filePath)))
+}
+
+// lexerByName picks a lexer from a language name or alias, as written in the info
+// string of a fenced code block (```go, ```sh). It returns nil for an unknown
+// name; a block with no language is never highlighted, because guessing is worse
+// than leaving it plain.
+func lexerByName(name string) chroma.Lexer {
+	if name == "" {
+		return nil
+	}
+	return usableLexer(lexers.Get(name))
+}
+
+// usableLexer rejects "no lexer", chroma's fallback, and its plain-text lexer,
+// none of which color anything.
+func usableLexer(l chroma.Lexer) chroma.Lexer {
 	if l == nil || l == lexers.Fallback || l.Config().Name == "plaintext" {
 		return nil
 	}
 	return chroma.Coalesce(l)
 }
 
-// highlightLines tokenizes text and returns one HTML fragment per source line,
-// without line terminators. A token that spans lines (a block comment, a
-// multi-line string) is split so every line is self-contained and its tags
-// balance. ok is false if tokenizing fails, runs past highlightBudget, or the
-// result does not line up with the source, in which case the caller shows plain
-// text.
-func (h *highlighter) highlightLines(lexer chroma.Lexer, text string, wantLines int) ([]string, bool) {
+// tokenize runs a lexer over text, giving up (ok false) if it fails or runs past
+// highlightBudget. The budget is checked between tokens; chroma separately limits
+// each regex match.
+func tokenize(lexer chroma.Lexer, text string) ([]chroma.Token, bool) {
 	it, err := lexer.Tokenise(nil, text)
 	if err != nil {
 		return nil, false
@@ -107,6 +161,51 @@ func (h *highlighter) highlightLines(lexer chroma.Lexer, text string, wantLines 
 		if len(tokens)%256 == 0 && time.Now().After(deadline) {
 			return nil, false
 		}
+	}
+	return tokens, true
+}
+
+// spend takes n bytes from the site's highlighting budget, reporting whether the
+// text may be highlighted at all: not over the per-text cap and not over what is
+// left. A refused text spends nothing, so a smaller later one can still fit.
+func (h *highlighter) spend(n int) bool {
+	if n > maxHighlightBytes || n > h.remaining {
+		return false
+	}
+	h.remaining -= n
+	return true
+}
+
+// block renders a fenced code block as a highlighted <pre>, or reports ok false
+// when it cannot be (too large, budget spent, out of time) so the caller leaves
+// the block to the default renderer. lang is the language as written, used for
+// the class name.
+func (h *highlighter) block(lexer chroma.Lexer, lang, text string) (string, bool) {
+	if !h.spend(len(text)) {
+		return "", false
+	}
+	tokens, ok := tokenize(lexer, text)
+	if !ok {
+		return "", false
+	}
+	var body strings.Builder
+	if err := h.formatter.Format(&body, h.style, chroma.Literator(tokens...)); err != nil {
+		return "", false
+	}
+	return `<pre class="chroma"><code class="language-` + template.HTMLEscapeString(lang) + `">` +
+		body.String() + "</code></pre>\n", true
+}
+
+// highlightLines tokenizes text and returns one HTML fragment per source line,
+// without line terminators. A token that spans lines (a block comment, a
+// multi-line string) is split so every line is self-contained and its tags
+// balance. ok is false if tokenizing fails, runs past highlightBudget, or the
+// result does not line up with the source, in which case the caller shows plain
+// text.
+func (h *highlighter) highlightLines(lexer chroma.Lexer, text string, wantLines int) ([]string, bool) {
+	tokens, ok := tokenize(lexer, text)
+	if !ok {
+		return nil, false
 	}
 
 	lines := make([]string, 0, wantLines)
@@ -170,11 +269,10 @@ func renderCode(data []byte, h *highlighter, filePath string) codeResult {
 			case len(data) > maxHighlightBytes:
 				return wrapLines(escapeLines(plain), false,
 					fmt.Sprintf("not highlighted: larger than %s", humanSize(maxHighlightBytes)))
-			case len(data) > h.remaining:
+			case !h.spend(len(data)):
 				return wrapLines(escapeLines(plain), false,
 					"not highlighted: this site's highlighting limit was reached")
 			default:
-				h.remaining -= len(data)
 				if lines, ok := h.highlightLines(lexer, text, len(plain)); ok {
 					return wrapLines(lines, true, "")
 				}

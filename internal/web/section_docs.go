@@ -89,17 +89,17 @@ func (s *docsSection) render(sc *siteContext) error {
 
 // writeDocPage renders one doc body plus the sidebar into a docs page.
 func (s *docsSection) writeDocPage(sc *siteContext, relPath, root, title, body string, tree []*navNode) error {
-	contentHTML, err := renderMarkdown(sc.repo, root, body)
+	md, err := sc.markdown(root, body)
 	if err != nil {
 		return err
 	}
 	sidebar := renderSidebar(tree, root, relPath)
-	view := docsView{Sidebar: sidebar, Title: title, ContentHTML: contentHTML}
+	view := docsView{Sidebar: sidebar, Title: title, ContentHTML: md.HTML}
 	page, err := renderBody(docsBodyTmpl, view)
 	if err != nil {
 		return err
 	}
-	return sc.renderPage(relPath, root, title, page)
+	return sc.renderPageCSS(relPath, root, title, page, md.CSS)
 }
 
 // writeLanding writes docs/index.html: the source dir's top-level index/README

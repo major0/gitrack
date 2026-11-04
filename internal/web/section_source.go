@@ -37,11 +37,10 @@ func (s *sourceSection) name() string { return sectionSource }
 
 // sourceSnapshot is the resolved view the section renders.
 type sourceSnapshot struct {
-	git       *gitsrc.Repo
-	highlight string // chroma style name, or "off"
-	ref       string
-	sha       string
-	commits   int
+	git     *gitsrc.Repo
+	ref     string
+	sha     string
+	commits int
 }
 
 // sourceMemo is the snapshot and log resolved once per generation.
@@ -98,11 +97,7 @@ func (s *sourceSection) resolveSnapshot(sc *siteContext) (*sourceSnapshot, error
 	if err != nil {
 		return nil, err
 	}
-	hl, err := readConfigValue(filepath.Join(base, "highlight"), defaultHighlightStyle)
-	if err != nil {
-		return nil, err
-	}
-	return &sourceSnapshot{git: g, ref: ref, sha: sha, commits: n, highlight: hl}, nil
+	return &sourceSnapshot{git: g, ref: ref, sha: sha, commits: n}, nil
 }
 
 // nav contributes one source entry, only when there is something to browse.
@@ -340,7 +335,7 @@ type blobView struct {
 }
 
 func (s *sourceSection) writeBlobs(sc *siteContext, snap *sourceSnapshot, files []gitsrc.Entry) error {
-	hl, err := newHighlighter(snap.highlight)
+	hl, err := sc.highlighter() // shared with Markdown code blocks (ADR-0045)
 	if err != nil {
 		return err
 	}

@@ -19,14 +19,14 @@ well-behaved path but cannot constrain what the tree physically contains, and
     ├── theme             # theme name (only the built-in theme exists today)
     ├── portal/           # portal pages (*.md); front.md is the front page
     ├── blog/             # blog posts (*.md)
+    ├── highlight         # code color style, or "off" (default github)
     ├── docs/             # docs section settings
     │   ├── source        # repo-relative docs source dir (default "docs")
     │   ├── layout        # docs sidebar tree
     │   └── exclude       # doc path patterns to omit from the site
     └── source/           # source browser settings
         ├── ref           # what to snapshot: branch, tag, or commit (default HEAD)
-        ├── commits       # how many log entries to render (default 100)
-        └── highlight     # color style name, or "off" (default github)
+        └── commits       # how many log entries to render (default 100)
 ```
 
 ## Kinds
@@ -118,7 +118,7 @@ internal trees, list their patterns.
 
 ## Source section
 
-Three optional single-line files under `.gitrack/config/site/source/`:
+Two optional single-line files under `.gitrack/config/site/source/`:
 
 ### `ref`
 
@@ -131,10 +131,19 @@ there is nothing to browse, so the section emits nothing.
 How many recent commits to list and give a page each. Absent, or not a positive
 number ⇒ `100`.
 
-### `highlight`
+See [Browsing source](source.md).
 
-The color style for syntax highlighting, or `off` to turn it off. Absent ⇒
-`github`. A name that is not a known style is ignored and the default is used.
-See [Browsing source](source.md#highlighting) for the styles and the limits.
+## Highlighting
+
+`.gitrack/config/site/highlight` is a single line that controls syntax
+highlighting across the whole site: the source browser, and fenced code blocks in
+docs, blog, portal, and release-notes pages. It is either `off`, or the name of a
+color style. Absent ⇒ the `github` style. A name that is not a known style is
+ignored and the default is used.
+
+This setting used to live at `source/highlight`; that location is no longer read.
+
+See [Browsing source](source.md#highlighting) for the available styles and the
+limits.
 
 See [Browsing source](source.md).

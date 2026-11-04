@@ -129,6 +129,29 @@ Because the id comes from the heading's words, renaming a heading changes its
 address and breaks any link that used the old one, so search your pages for the
 old fragment when you rename a section.
 
+## Code blocks in Markdown pages
+
+A fenced code block is colored when you name its language right after the opening
+fence:
+
+````
+```go
+func main() {}
+```
+````
+
+The language is the first word after the fence, by name or common alias (`go`,
+`sh`, `bash`, `yaml`, `json`, `markdown`, `diff`, `python`, and many more). Extra
+words after it, like `go title=main.go`, are ignored. A block with no language,
+an unknown language, or `text` is shown as plain monospaced text: gitrack never
+guesses a language from the code. The text is always escaped, so HTML inside a
+block is displayed, never run.
+
+Colors come from the same style as the source browser, set by the one
+site-wide `highlight` file (see [Configuration](configuration.md)); `off`
+turns it off everywhere. Only pages that contain a colored block carry the extra
+stylesheet.
+
 ## Releases section
 
 Unlike portal and blog, `releases` has no content files to write. It renders

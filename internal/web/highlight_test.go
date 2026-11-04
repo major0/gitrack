@@ -241,7 +241,7 @@ func TestSourceHighlightConfig(t *testing.T) {
 	page := func(out string) string { return readOut(t, out, "source/blob/main.go/index.html") }
 
 	// off: plain text, all lines present, no stylesheet
-	writeSiteFile(t, repo, "source/highlight", "off\n")
+	writeSiteFile(t, repo, "highlight", "off\n")
 	off := page(generate(t, repo))
 	if strings.Contains(off, "chroma") || strings.Count(off, "<style>") != 1 {
 		t.Errorf("highlight=off must produce plain pages:\n%.500s", off)
@@ -251,16 +251,16 @@ func TestSourceHighlightConfig(t *testing.T) {
 	}
 
 	// a named style changes the stylesheet
-	writeSiteFile(t, repo, "source/highlight", "monokai\n")
+	writeSiteFile(t, repo, "highlight", "monokai\n")
 	mono := page(generate(t, repo))
-	writeSiteFile(t, repo, "source/highlight", "github\n")
+	writeSiteFile(t, repo, "highlight", "github\n")
 	gh := page(generate(t, repo))
 	if mono == gh || !strings.Contains(mono, ".chroma") {
 		t.Errorf("monokai and github should render different stylesheets")
 	}
 
 	// an unknown style neither fails nor changes the default output
-	writeSiteFile(t, repo, "source/highlight", "no-such-style\n")
+	writeSiteFile(t, repo, "highlight", "no-such-style\n")
 	unknown := page(generate(t, repo))
 	if unknown != gh {
 		t.Errorf("an unknown style should produce the default (github) output")

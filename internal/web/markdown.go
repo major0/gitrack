@@ -11,6 +11,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -35,22 +36,55 @@ var anyRefToken = regexp.MustCompile(
 // in the source is NOT rendered as markup (goldmark default): untrusted authored
 // content cannot inject <script>/<iframe> (ADR-0038 Safety).
 func renderMarkdown(repo *core.Repo, root, src string) (template.HTML, error) {
+	res, err := renderMarkdownWith(markdownOpts{repo: repo, root: root}, src)
+	return res.HTML, err
+}
+
+// markdownOpts carries what a render needs beyond the source: the repo for
+// #ref resolution, the page's path-to-root, and an optional highlighter for
+// fenced code blocks (nil leaves every fence to goldmark's plain rendering).
+type markdownOpts struct {
+	repo *core.Repo
+	root string
+	hl   *highlighter
+}
+
+// mdResult is rendered Markdown plus the stylesheet its highlighted code needs.
+// CSS is empty unless at least one block was highlighted, so a page attaches it
+// only when it is used (ADR-0045).
+type mdResult struct {
+	HTML template.HTML
+	CSS  template.CSS
+}
+
+// renderMarkdownWith is renderMarkdown with a highlighter for fenced code.
+func renderMarkdownWith(o markdownOpts, src string) (mdResult, error) {
+	transformers := []util.PrioritizedValue{
+		// lower runs first: ids come from the authored heading text, before the
+		// autolinker rewrites any #refs inside it
+		util.Prioritized(headingAnchorTransformer{}, 50),
+		util.Prioritized(&autolinkTransformer{repo: o.repo, root: o.root}, 100),
+	}
+	fences := &fenceHighlighter{hl: o.hl}
+	if o.hl != nil {
+		transformers = append(transformers, util.Prioritized(fences, 150))
+	}
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
-		goldmark.WithParserOptions(
-			parser.WithASTTransformers(
-				// lower runs first: ids come from the authored heading text,
-				// before the autolinker rewrites any #refs inside it
-				util.Prioritized(headingAnchorTransformer{}, 50),
-				util.Prioritized(&autolinkTransformer{repo: repo, root: root}, 100),
-			),
-		),
+		goldmark.WithParserOptions(parser.WithASTTransformers(transformers...)),
+		goldmark.WithRendererOptions(renderer.WithNodeRenderers(
+			util.Prioritized(highlightedCodeRenderer{}, 500),
+		)),
 	)
 	var buf bytes.Buffer
 	if err := md.Convert([]byte(src), &buf); err != nil {
-		return "", err
+		return mdResult{}, err
 	}
-	return template.HTML(buf.String()), nil //nolint:gosec // goldmark escapes; raw HTML disabled; links added only for resolved refs
+	res := mdResult{HTML: template.HTML(buf.String())} //nolint:gosec // goldmark escapes; raw HTML disabled; links added only for resolved refs; highlighted blocks are chroma output, which escapes
+	if fences.highlighted > 0 {
+		res.CSS = o.hl.css
+	}
+	return res, nil
 }
 
 // autolinkTransformer is a goldmark AST transformer that replaces resolvable

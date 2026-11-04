@@ -84,11 +84,11 @@ func (s *portalSection) render(sc *siteContext) error {
 		}
 		_, body := splitFrontMatter(string(src))
 		relPath, root := s.output(sc, p)
-		html, err := renderMarkdown(sc.repo, root, body)
+		md, err := sc.markdown(root, body)
 		if err != nil {
 			return err
 		}
-		if err := sc.renderPage(relPath, root, p.title, html); err != nil {
+		if err := sc.renderPageCSS(relPath, root, p.title, md.HTML, md.CSS); err != nil {
 			return err
 		}
 	}

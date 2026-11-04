@@ -78,12 +78,13 @@ func (s *releasesSection) writeRelease(sc *siteContext, rel release, byID map[st
 		Tag:      rel.tag,
 		Released: rel.track.State == core.StateClosed,
 	}
+	var css template.CSS
 	if rel.track.Description != "" {
-		notes, err := renderMarkdown(sc.repo, "../", rel.track.Description)
+		notes, err := sc.markdown("../", rel.track.Description)
 		if err != nil {
 			return err
 		}
-		view.NotesHTML = notes
+		view.NotesHTML, css = notes.HTML, notes.CSS
 	}
 	for _, id := range rel.track.Relations["ships"] {
 		t, ok := byID[id]
@@ -98,7 +99,7 @@ func (s *releasesSection) writeRelease(sc *siteContext, rel release, byID map[st
 	if err != nil {
 		return err
 	}
-	return sc.renderPage("releases/"+rel.slug()+".html", "../", rel.track.Title, body)
+	return sc.renderPageCSS("releases/"+rel.slug()+".html", "../", rel.track.Title, body, css)
 }
 
 // load returns the release tracks newest-first, plus every track by id so

@@ -60,16 +60,16 @@ func (s *blogSection) render(sc *siteContext) error {
 			return err
 		}
 		_, body := splitFrontMatter(string(src))
-		html, err := renderMarkdown(sc.repo, "../", body)
+		md, err := sc.markdown("../", body)
 		if err != nil {
 			return err
 		}
-		view := postView{Title: p.title, Date: p.date, BodyHTML: html}
+		view := postView{Title: p.title, Date: p.date, BodyHTML: md.HTML}
 		rendered, err := renderBody(postBodyTmpl, view)
 		if err != nil {
 			return err
 		}
-		if err := sc.renderPage("blog/"+p.slug+".html", "../", p.title, rendered); err != nil {
+		if err := sc.renderPageCSS("blog/"+p.slug+".html", "../", p.title, rendered, md.CSS); err != nil {
 			return err
 		}
 	}

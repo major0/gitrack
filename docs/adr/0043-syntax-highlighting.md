@@ -52,7 +52,9 @@ files wrongly, and a wrong guess is worse than none. chroma's plain-text lexer
 and would only attach a stylesheet to an ordinary page.
 
 ### Configuration
-One optional single-line file, `.gitrack/config/site/source/highlight`:
+One optional single-line file, originally `.gitrack/config/site/source/highlight`
+(ADR-0045 moved it to `.gitrack/config/site/highlight` so it can govern code blocks
+in Markdown too; the old location is no longer read):
 - absent: the `github` style (light);
 - `off`: no highlighting at all;
 - any chroma style name (`monokai`, `dracula`, `solarized-light`, ...): that style.
@@ -74,7 +76,7 @@ visible note rather than an error:
 - Commit patches are not highlighted: a patch mixes languages and shows partial
   lines, which lexers cannot parse reliably.
 - Fenced code in Markdown (docs, blog, release notes) is not highlighted by this
-  change; that is the Markdown renderer's concern.
+  change; ADR-0045 adds it.
 - Content-based language detection, per-language style overrides, and a dark-mode
   stylesheet for the same page are not provided.
 

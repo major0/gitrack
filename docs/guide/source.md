@@ -74,14 +74,14 @@ Two optional files under `.gitrack/config/site/source/`, each a single line:
 |---|---|---|
 | `ref` | the branch, tag, or commit to snapshot | `HEAD` |
 | `commits` | how many log entries to render | `100` |
-| `highlight` | a color style name, or `off` | `github` |
 
 ```sh
 mkdir -p .gitrack/config/site/source
 echo v1.2.0 > .gitrack/config/site/source/ref        # snapshot a tag
 echo 250    > .gitrack/config/site/source/commits    # a longer log
-echo monokai > .gitrack/config/site/source/highlight # a different color style
 ```
+
+Highlighting has its own site-wide setting, described below.
 
 A `commits` value that is not a positive number is ignored and the default is
 used. A `ref` that does not resolve to a commit means there is nothing to browse,
@@ -95,10 +95,18 @@ extension, or a well-known name such as `Makefile` or `Dockerfile`. Gitrack does
 not guess a language from a file's contents, so a file whose name it does not
 recognize, and plain `.txt` files, are shown uncolored.
 
-`highlight` picks the color style. The default is `github`, a light style. Other
-choices include `github-dark`, `monokai`, `dracula`, `nord`, `solarized-light`,
-`solarized-dark`, `vs`, and `xcode`. A name that is not a style is ignored and
-the default is used. Set it to `off` to turn highlighting off entirely.
+One setting, `.gitrack/config/site/highlight`, covers the whole site: these source
+pages and also fenced code blocks in docs, blog, portal, and release-notes pages
+(see [The project website](website.md)). It picks the color style. The default is
+`github`, a light style. Other choices include `github-dark`, `monokai`,
+`dracula`, `nord`, `solarized-light`, `solarized-dark`, `vs`, and `xcode`. A name
+that is not a style is ignored and the default is used. Set it to `off` to turn
+highlighting off everywhere.
+
+```sh
+echo monokai > .gitrack/config/site/highlight   # a different color style
+echo off     > .gitrack/config/site/highlight   # no highlighting at all
+```
 
 Highlighting is the slowest part of generating the source section: expect about
 a second for every 300 KB of source. To keep that bounded, three limits apply,
@@ -106,8 +114,9 @@ and a file that hits one is shown as plain numbered text with a note saying why:
 
 - a file larger than 128 KiB is not highlighted;
 - a file that takes more than a couple of seconds to color is abandoned;
-- one generation highlights at most 32 MiB of source in total. Files are taken in
-  the same order every time, so the same repository always highlights the same
+- one generation highlights at most 32 MiB in total, counting these source files
+  and the code blocks in your Markdown pages together. Everything is taken in the
+  same order every time, so the same repository always highlights the same
   files, whatever the machine.
 
 For a very large repository, `off` is the way to keep generation fast. Turning
