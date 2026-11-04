@@ -39,6 +39,9 @@ func renderMarkdown(repo *core.Repo, root, src string) (template.HTML, error) {
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(
 			parser.WithASTTransformers(
+				// lower runs first: ids come from the authored heading text,
+				// before the autolinker rewrites any #refs inside it
+				util.Prioritized(headingAnchorTransformer{}, 50),
 				util.Prioritized(&autolinkTransformer{repo: repo, root: root}, 100),
 			),
 		),

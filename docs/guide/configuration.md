@@ -135,7 +135,6 @@ number ⇒ `100`.
 
 The color style for syntax highlighting, or `off` to turn it off. Absent ⇒
 `github`. A name that is not a known style is ignored and the default is used.
-See the Highlighting section of [Browsing source](source.md) for the styles and
-the limits.
+See [Browsing source](source.md#highlighting) for the styles and the limits.
 
 See [Browsing source](source.md).

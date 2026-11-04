@@ -109,6 +109,26 @@ by the docs it produces, but in short:
 
 See [Configuration](configuration.md) for the exact config files.
 
+## Headings and links in Markdown pages
+
+Every heading in a rendered Markdown page (docs, portal, blog, release notes) gets
+an id taken from its text, using the same rules GitHub uses. So a link you write
+for your README on GitHub, such as `[install](#install)` or
+`[setup](guide.md#getting-started)`, works on the generated site too.
+
+- The id is the heading in lower case, with spaces turned into `-` and punctuation
+  dropped: `Getting started` becomes `getting-started`, `snake_case names` becomes
+  `snake_case-names`, and `Café au lait` becomes `café-au-lait`. Letters from any
+  language are kept.
+- A repeated heading gets a number: `intro`, `intro-1`, `intro-2`.
+- A heading made only of punctuation is called `section`.
+- Hover a heading to reveal a link to it, to copy a direct address for that
+  section.
+
+Because the id comes from the heading's words, renaming a heading changes its
+address and breaks any link that used the old one, so search your pages for the
+old fragment when you rename a section.
+
 ## Releases section
 
 Unlike portal and blog, `releases` has no content files to write. It renders
