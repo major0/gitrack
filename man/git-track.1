@@ -1,4 +1,4 @@
-.TH GIT-TRACK 1 "2026-11-02" "gitrack" "Git Track Manual"
+.TH GIT-TRACK 1 "2026-11-04" "gitrack" "Git Track Manual"
 .SH NAME
 git-track \- distributed tracker whose state merges with your code
 .SH SYNOPSIS
@@ -61,6 +61,9 @@ soft link, no scheduling effect
 .TP
 .B duplicate\-of <ref> <target>
 mark <ref> a duplicate of <target>
+.TP
+.B ships <release> <target>
+record that a release (kind=release) shipped <target>
 .TP
 .B unlink <ref> <rel> <target>
 remove a relationship edge

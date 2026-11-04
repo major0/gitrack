@@ -98,7 +98,9 @@ Everything below is an application of that one rule.
     │   └── <parent-uuid>
     ├── related/
     │   └── <target-uuid>
-    └── duplicate-of/
+    ├── duplicate-of/
+    │   └── <target-uuid>
+    └── ships/                   # on a kind=release track: what it shipped
         └── <target-uuid>
 ```
 
@@ -127,6 +129,7 @@ UUID. The file may be empty or hold an optional note.
 | `child-of/`               | A is contained by B (epic/project); B waits for A |
 | `related/`                | soft link, no scheduling meaning               |
 | `duplicate-of/`           | A is closed as a duplicate pointer to B        |
+| `ships/`                  | release A shipped B; a record only, no scheduling meaning |
 
 Inverse edges (`blocks`, `parent-of`) are **not stored**; tools compute them by
 reversing the stored edges. One primitive (a directed link); the graph builder
@@ -144,7 +147,7 @@ every child `C` with `C child-of A` is closed. A leaf track with no `depends-on`
 and no open children is unblocked. This is the input to boards/roadmaps.
 
 Relationships are edited with the relation-named verbs — `git track depends-on
-<ref> <target>`, `child-of`, `related`, `duplicate-of` — and removed with `git
+<ref> <target>`, `child-of`, `related`, `duplicate-of`, `ships` — and removed with `git
 track unlink <ref> <rel> <target>`. Each writes only the forward link; the
 reverse `refs-in/` cache and blocked/unblocked status are derived. `child-of`
 enforces the single-parent convention. `git track show` prints a track's

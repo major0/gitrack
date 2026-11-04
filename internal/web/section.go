@@ -61,6 +61,12 @@ type siteContext struct {
 	// blogEnabled reports whether the blog section is enabled, so the portal
 	// section can include the blog link in its nav (ADR-0039).
 	blogEnabled bool
+	// issuesEnabled reports whether the issues section is enabled. Other sections
+	// link to track pages only when those pages will exist (ADR-0041).
+	issuesEnabled bool
+	// releasesEnabled reports whether the releases section is enabled, so track
+	// pages can link "shipped in" to the release page (ADR-0041).
+	releasesEnabled bool
 	// trackPages counts per-track pages written, reported by Generate for
 	// backward compatibility with the CLI's "(N track pages)" message.
 	trackPages int
@@ -85,6 +91,8 @@ func buildSections(cfg siteConfig) []section {
 			out = append(out, &blogSection{})
 		case sectionDocs:
 			out = append(out, &docsSection{})
+		case sectionReleases:
+			out = append(out, &releasesSection{})
 		default:
 			// Unknown or not-yet-built section: skip (ADR-0026, ADR-0037 §1).
 		}

@@ -1,10 +1,10 @@
 # Relationships
 
-Tracks link to each other with four relationship verbs. gitrack stores only the
+Tracks link to each other with five relationship verbs. gitrack stores only the
 **forward** link you author and computes everything else — inverse edges,
 blocking, rollups — from it.
 
-## The four relationships
+## The relationships
 
 | command | meaning | scheduling effect |
 |---|---|---|
@@ -12,6 +12,7 @@ blocking, rollups — from it.
 | `child-of <ref> <parent>` | `<ref>` is contained by `<parent>` | the parent waits for the child |
 | `related <ref> <target>` | soft association | none |
 | `duplicate-of <ref> <target>` | `<ref>` duplicates `<target>` | typically closed as a pointer |
+| `ships <release> <target>` | the release shipped `<target>` | none; a record only (see [Releases](releases.md)) |
 
 Create and remove edges:
 
@@ -20,6 +21,7 @@ git track depends-on session-refresh new-login-flow
 git track child-of   new-login-flow  ship-auth-v2
 git track related    docs-update      new-login-flow
 git track duplicate-of old-bug        new-login-flow
+git track ships       v1-2-0          new-login-flow
 git track unlink      session-refresh depends-on new-login-flow
 ```
 

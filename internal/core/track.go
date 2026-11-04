@@ -10,8 +10,9 @@ import (
 )
 
 // Relationship directory names (docs/FORMAT.md §4). These are forward links and
-// are the source of truth; reverse links are derived into the cache.
-var RelationKinds = []string{"depends-on", "child-of", "related", "duplicate-of"}
+// are the source of truth; reverse links are derived into the cache. "ships"
+// (ADR-0041) records what a release shipped and has no scheduling effect.
+var RelationKinds = []string{"depends-on", "child-of", "related", "duplicate-of", "ships"}
 
 // Track is a materialized view of one tracker object, read from its authoritative
 // files. It is a convenience snapshot; the files on disk remain the truth.

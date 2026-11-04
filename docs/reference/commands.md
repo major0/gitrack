@@ -62,6 +62,10 @@ A soft link with no scheduling effect.
 ### `duplicate-of <ref> <target>`
 Mark `<ref>` a duplicate of `<target>`.
 
+### `ships <release> <target>`
+Record that a release (a track with `kind=release`) shipped `<target>`. A record
+only: it has no scheduling effect. See [Releases](../guide/releases.md).
+
 ### `unlink <ref> <rel> <target>`
 Remove a relationship edge, e.g. `unlink a depends-on b`.
 

@@ -19,7 +19,7 @@ by subject:
 - [Status workflows](guide/workflow.md) — the fixed `state` axis, the
   customizable `status` workflow, and how to shape it with `config`.
 - [Relationships](guide/relationships.md) — depends-on, child-of, related,
-  duplicate-of, and how blocking is computed.
+  duplicate-of, ships, and how blocking is computed.
 - [Boards and roadmaps](guide/boards.md) — the Ready/Blocked view and the
   dependency digraph.
 - [References and autolinking](guide/references.md) — the `#ref` syntax, slugs,
@@ -27,8 +27,10 @@ by subject:
 - [Comments](guide/comments.md) — threaded Markdown discussion, authored by git.
 - [Commit integration](guide/commit-integration.md) — closing and relating
   tracks from commit messages, and keeping a fix and its close in one commit.
+- [Releases](guide/releases.md) — record what each release shipped, and publish
+  dated release notes.
 - [The project website](guide/website.md) — generate a static site: issues,
-  portal, blog, and docs sections, plus the live preview server.
+  portal, blog, docs, and releases sections, plus the live preview server.
 - [Configuration](guide/configuration.md) — every `.gitrack/config/` knob:
   kinds, statuses, and the site config.
 - [Publishing](guide/publishing.md) — deploy the static site to Pages, S3, a
@@ -38,10 +40,3 @@ by subject:
 
 - [Command reference](reference/commands.md) — every `git track` subcommand,
   its flags, and what it writes.
-
-## Design records
-
-The architecture decisions behind gitrack live in `docs/adr/` in the source
-repository. They are written for contributors and are **not** part of this
-user-facing documentation site (they are excluded from the published docs by
-default).

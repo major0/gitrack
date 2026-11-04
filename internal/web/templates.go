@@ -106,7 +106,8 @@ var trackBodyTmpl = template.Must(template.New("track").Funcs(tmplFuncs).Parse(`
 </dl>
 {{range $rel, $targets := .Track.Relations}}<p><b>{{$rel}}:</b>
 {{range $i, $t := $targets}}{{if $i}}, {{end}}<a href="{{$t}}.html"><code>{{short $t}}</code></a>{{end}}</p>
-{{end}}
+{{end}}{{if .ShippedIn}}<p><b>shipped in:</b>
+{{range $i, $r := .ShippedIn}}{{if $i}}, {{end}}<a href="{{$r.Href}}">{{$r.Title}}</a>{{end}}</p>{{end}}
 {{if .Track.Description}}<h2>Description</h2><pre>{{.DescHTML}}</pre>{{end}}
 {{if .Mentions}}<h2>Mentions</h2>
 <ul>
@@ -185,3 +186,25 @@ var docsBodyTmpl = template.Must(template.New("docs").Parse(`
 {{.ContentHTML}}
 </main>
 </div>`))
+
+// releasesIndexTmpl lists releases newest-first (ADR-0041). It reuses the blog
+// index styling. Pure HTML, no script.
+var releasesIndexTmpl = template.Must(template.New("releasesindex").Parse(`
+<h1>Releases</h1>
+<ul class="posts">
+{{range .}}<li>{{if .Date}}<span class="date">{{.Date}}</span>{{end}}<a href="{{.Slug}}.html">{{.Title}}</a>
+<span class="muted">{{if .Released}}released{{else}}upcoming{{end}} &middot; {{.Shipped}} shipped</span></li>
+{{else}}<li class="muted">no releases</li>{{end}}
+</ul>`))
+
+// releaseBodyTmpl renders one release: meta line, the notes (already-rendered
+// Markdown), and the tracks it shipped (ADR-0041). Pure HTML, no script.
+var releaseBodyTmpl = template.Must(template.New("release").Parse(`
+<p><a href="index.html">&larr; all releases</a></p>
+<h1>{{.Title}}</h1>
+<p class="post-meta">{{if .Date}}{{.Date}} &middot; {{end}}{{if .Released}}released{{else}}upcoming{{end}}{{if .Tag}} &middot; tag <code>{{.Tag}}</code>{{end}}</p>
+{{.NotesHTML}}
+{{if .Shipped}}<h2>Shipped ({{len .Shipped}})</h2>
+<ul>
+{{range .Shipped}}<li>{{if .Link}}<a href="../track/{{.ID}}.html">{{.Title}}</a>{{else}}{{.Title}}{{end}} <span class="muted">{{.State}}</span></li>
+{{end}}</ul>{{end}}`))

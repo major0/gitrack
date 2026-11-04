@@ -48,6 +48,7 @@ var commands = []command{
 	{"child-of", "<ref> <parent>", "place <ref> under <parent> (one parent)"},
 	{"related", "<ref> <target>", "soft link, no scheduling effect"},
 	{"duplicate-of", "<ref> <target>", "mark <ref> a duplicate of <target>"},
+	{"ships", "<release> <target>", "record that a release (kind=release) shipped <target>"},
 	{"unlink", "<ref> <rel> <target>", "remove a relationship edge"},
 	{"board", "[--graph|--mermaid|--dot]", "ready/blocked work, or the dependency digraph"},
 	{"web", "--out <dir>", "generate a self-contained static site (offline-capable)"},
@@ -136,7 +137,7 @@ func run(args []string) error {
 		return cmdComment(rest)
 	case "commit":
 		return cmdCommit(rest)
-	case "depends-on", "child-of", "related", "duplicate-of":
+	case "depends-on", "child-of", "related", "duplicate-of", "ships":
 		return cmdLink(cmd, rest)
 	case "unlink":
 		return cmdUnlink(rest)

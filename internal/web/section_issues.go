@@ -55,13 +55,45 @@ func (s *issuesSection) render(sc *siteContext) error {
 	if err := s.writeBoard(sc, board); err != nil {
 		return err
 	}
+	shippedIn := shippedInIndex(sc, tracks)
 	for _, t := range tracks {
-		if err := s.writeTrack(sc, t); err != nil {
+		if err := s.writeTrack(sc, t, shippedIn[t.ID]); err != nil {
 			return err
 		}
 		sc.trackPages++
 	}
 	return nil
+}
+
+// releaseRef is a link from a shipped track back to a release that shipped it.
+type releaseRef struct {
+	Title string
+	Href  string // relative to track/<id>.html
+}
+
+// shippedInIndex inverts the forward "ships" links once (ADR-0041): a map from
+// each shipped track id to the releases that shipped it. One pass over the
+// tracks, rather than a scan per page. The link targets the release page when
+// the releases section is enabled, else the release's own track page.
+func shippedInIndex(sc *siteContext, tracks []*core.Track) map[string][]releaseRef {
+	idx := map[string][]releaseRef{}
+	for _, t := range tracks {
+		if t.Kind != core.KindRelease {
+			continue
+		}
+		href := t.ID + ".html"
+		if sc.releasesEnabled {
+			name := t.Slug
+			if name == "" {
+				name = t.ID
+			}
+			href = "../releases/" + name + ".html"
+		}
+		for _, target := range t.Relations["ships"] {
+			idx[target] = append(idx[target], releaseRef{Title: t.Title, Href: href})
+		}
+	}
+	return idx
 }
 
 // loadTracks loads every track, sorted by id for deterministic output.
@@ -86,10 +118,11 @@ func loadTracks(repo *core.Repo) ([]*core.Track, error) {
 // #refs autolinked (ADR-0030), commit mentions derived from git (ADR-0031), and
 // the threaded comments.
 type trackView struct {
-	Track    *core.Track
-	DescHTML template.HTML
-	Mentions []core.Mention
-	Comments []*commentNode
+	Track     *core.Track
+	DescHTML  template.HTML
+	Mentions  []core.Mention
+	Comments  []*commentNode
+	ShippedIn []releaseRef
 }
 
 func (s *issuesSection) writeIndex(sc *siteContext, tracks []*core.Track) error {
@@ -140,7 +173,7 @@ func (s *issuesSection) writeBoard(sc *siteContext, board *core.Board) error {
 	return sc.renderPage("board.html", "", "gitrack board", body)
 }
 
-func (s *issuesSection) writeTrack(sc *siteContext, t *core.Track) error {
+func (s *issuesSection) writeTrack(sc *siteContext, t *core.Track, shippedIn []releaseRef) error {
 	// Track pages live in track/<id>.html, one level below root, so refs link
 	// back up via "../" (ADR-0030).
 	mentions, err := sc.repo.Mentions(t.ID)
@@ -152,10 +185,11 @@ func (s *issuesSection) writeTrack(sc *siteContext, t *core.Track) error {
 		return err
 	}
 	view := trackView{
-		Track:    t,
-		DescHTML: autolink(sc.repo, "../", t.Description),
-		Mentions: mentions,
-		Comments: buildThread(sc.repo, "../", comments),
+		Track:     t,
+		DescHTML:  autolink(sc.repo, "../", t.Description),
+		Mentions:  mentions,
+		Comments:  buildThread(sc.repo, "../", comments),
+		ShippedIn: shippedIn,
 	}
 	body, err := renderBody(trackBodyTmpl, view)
 	if err != nil {

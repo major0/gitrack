@@ -40,6 +40,7 @@ view. The available sections:
 | `portal` | a front page, plus about/contact and any other marketing pages |
 | `blog` | a news blog: one page per post and a newest-first index |
 | `docs` | the project's Markdown documentation with a configurable sidebar |
+| `releases` | release notes from `kind=release` tracks, newest first, with the tracks each shipped |
 
 (Source-tree browsing and API reference sections are planned.)
 
@@ -50,6 +51,7 @@ portal
 blog
 docs
 issues
+releases
 ```
 
 A section with no content emits nothing and drops its nav entry, so enabling a
@@ -104,6 +106,14 @@ by the docs it produces, but in short:
   (even empty) `exclude` file to publish everything.
 
 See [Configuration](configuration.md) for the exact config files.
+
+## Releases section
+
+Unlike portal and blog, `releases` has no content files to write. It renders
+every track of `kind` `release` from the tracker itself: the description is the
+release notes, the `ships` links are the shipped tracks, and the date comes from
+the git tag. Output is `releases/index.html` (newest first) and one
+`releases/<slug>.html` per release. See [Releases](releases.md).
 
 ## What's static and what's enhanced
 

@@ -41,7 +41,7 @@ statuses `new`, `reopened`, and `done` are always valid and cannot be removed.
 ## Site sections
 
 `.gitrack/config/site/sections` lists the enabled sections in order, one per
-line (`portal`, `blog`, `docs`, `issues`). Blank lines and `#` comments are
+line (`portal`, `blog`, `docs`, `issues`, `releases`). Blank lines and `#` comments are
 ignored. Absent ⇒ `issues` only, preserving the plain tracker view. An
 unknown or not-yet-built section name is skipped.
 
