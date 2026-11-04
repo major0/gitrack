@@ -108,3 +108,40 @@ func TestNavWithRoot(t *testing.T) {
 		t.Errorf("source nav mutated: %q", nav[0].Href)
 	}
 }
+
+// TestUnknownThemeFallsBackToBuiltin backs the configuration guide's claim that
+// only the built-in theme exists: any other theme name still generates, and the
+// output is identical to the default theme's.
+func TestUnknownThemeFallsBackToBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if _, err := repo.Create(core.NewTrackOpts{Title: "A track"}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	def := filepath.Join(t.TempDir(), "default")
+	if _, err := Generate(repo, def); err != nil {
+		t.Fatalf("Generate default: %v", err)
+	}
+
+	writeSiteFile(t, repo, "theme", "midnight\n")
+	custom := filepath.Join(t.TempDir(), "custom")
+	if _, err := Generate(repo, custom); err != nil {
+		t.Fatalf("Generate with unknown theme: %v", err)
+	}
+
+	want, err := os.ReadFile(filepath.Join(def, "index.html"))
+	if err != nil {
+		t.Fatalf("read default index: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(custom, "index.html"))
+	if err != nil {
+		t.Fatalf("read custom index: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("an unknown theme name should render exactly like the built-in theme")
+	}
+}

@@ -16,7 +16,7 @@ well-behaved path but cannot constrain what the tree physically contains, and
 │   └── <status>          #   that status's allowed next statuses, one per line
 └── site/                 # static-site generator settings
     ├── sections          # enabled site sections, one per line
-    ├── theme             # theme name (built-in default when absent)
+    ├── theme             # theme name (only the built-in theme exists today)
     ├── portal/           # portal pages (*.md); front.md is the front page
     ├── blog/             # blog posts (*.md)
     └── docs/             # docs section settings
@@ -47,8 +47,13 @@ unknown or not-yet-built section name is skipped.
 
 ## Theme
 
-`.gitrack/config/site/theme` names the theme; absent (or `default`) uses the
-built-in theme, whose CSS is inlined so the site works offline.
+Every page is wrapped in one shared theme: the layout, the navigation bar, and
+the CSS, which is inlined so the site works offline.
+
+Only the built-in theme exists today. `.gitrack/config/site/theme` is read, and
+an absent file, an empty file, or the name `default` selects it. Any other name
+is accepted but falls back to the built-in theme, so setting it changes nothing
+yet. Custom themes are planned.
 
 ## Portal and blog content
 
