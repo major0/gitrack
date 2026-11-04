@@ -24,10 +24,22 @@ and invoked as a `git track` subcommand.
 
 ## Status
 
-Early. The design foundations and on-disk format are specified (`docs/`), and
-the Go CLI implements `init`, `config`, `create`, `update`, `get`, `set`,
-`show`, `list`, `search`, `close`, `reopen`, `comment`, `serve` (loopback live
-preview), and `fsck`.
+Early, but the tracker workflow is complete and usable. The on-disk format is
+specified in [`docs/FORMAT.md`](docs/FORMAT.md), and the Go CLI implements:
+
+- **Tracks:** `init`, `create`, `update`, `get`, `set`, `show`, `list`,
+  `search`, `close`, `reopen`
+- **Workflow:** `config` (custom status workflows)
+- **Discussion:** `comment` (threaded Markdown)
+- **Relationships:** `depends-on`, `child-of`, `related`, `duplicate-of`,
+  `ships`, `unlink`
+- **Git integration:** `commit` (applies the message's `closes`/`relates`
+  `#ref` directives in the same revision)
+- **Views:** `board`, `web` (static site), `serve` (live loopback preview)
+- **Maintenance:** `fsck`
+
+Every mutating command commits its change as its own revision, scoped to
+`.gitrack/`.
 
 Install the binary and man page with `scripts/install.sh` (defaults to
 `~/.local`); then `git track` works as a subcommand and `git help track` opens
@@ -52,21 +64,29 @@ alone. The man page is generated from the CLI's own command data
   human to resolve — while independent field edits and multi-value appends merge
   silently. This is proven empirically in `tests/merge-semantics.sh`.
 
-## Planned surface
+## What you get
 
-- A Go CLI shipped as `git-track` on `PATH`, invoked as `git track` by git's
-  native subcommand dispatch, for creating and updating tracks and
-  viewing the tracker.
-- A statically rendered web view and issues view — self-contained output that
+- **A Go CLI** shipped as `git-track` on `PATH`, invoked as `git track` by git's
+  native subcommand dispatch.
+- **A static project website** from `git track web`: self-contained output that
   deploys to any dumb host (S3, shared drive, Pages, IPFS) or opens as `file://`,
-  with no runtime server.
-- GitHub-style autolinked references across the web and issue views.
-- Project boards and roadmaps with a digraph of *unblocked work* — already built:
-  `git track board` (text, `--mermaid`, `--dot`) and the `/board` page in
-  `git track serve` (local preview).
+  with no runtime server. Config-toggled sections: issues (with threaded
+  comments), a portal (front page, about, contact), a blog, your Markdown docs
+  with a configurable sidebar, and release notes.
+- **Autolinked references** (`#slug`, `#short-id`, and cross-repo links) across
+  every section that renders authored text.
+- **Boards and roadmaps** with a digraph of *unblocked work*: `git track board`
+  (text, `--mermaid`, `--dot`) and a `/board` page in the live preview.
+- **Releases** as ordinary tracks, with the date taken from your git tag and a
+  record of the tracks each release shipped.
+
+Not built yet: a gitweb-style source-tree browser and a generated API
+reference.
 
 ## Documentation
 
+- [`docs/index.md`](docs/index.md) — the user guide and command reference. Start
+  here.
 - [`docs/VISION.md`](docs/VISION.md) — the why: a tracker with no hosted service.
 - [`docs/FORMAT.md`](docs/FORMAT.md) — the authoritative on-disk format spec.
 - [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) — survey of prior trackers and the

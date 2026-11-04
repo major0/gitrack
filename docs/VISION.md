@@ -32,9 +32,11 @@ history, issues, comments, relationships, boards — offline and complete.
 
 ## What this commits the design to
 
-- The on-disk format is the source of truth and is portable by git alone; nothing requires a central service.
+- The on-disk format is the source of truth and is portable by git alone;
+  nothing requires a central service.
 - Every rendered view must be **static** and deployable to a dumb host or opened
-  as `file://` — no runtime server in the deployment path. `git track serve` is a local *preview* convenience, never the deployment.
+  as `file://` — no runtime server in the deployment path. `git track serve` is
+  a local *preview* convenience, never the deployment.
 - Publishing targets are transport-agnostic: GitHub Pages today, and
   S3 / shared drive / IPFS / bundle as first-class static-sync targets over time.
 
@@ -44,28 +46,31 @@ history, issues, comments, relationships, boards — offline and complete.
 site, so a project needs no second static-site tool. It is built from
 independent, config-toggled sections over a shared theme:
 
-- **Portal** — front page, about, contact, and a news **blog**. Planned.
-- **Docs** — the repo's Markdown documentation with a project-defined layout.
+- **Issues** — the tracker: index, issues, board, and per-track pages with
+  threaded comments. Built.
+- **Portal** — a front page, about, contact, and other marketing pages. Built.
+- **Blog** — a news blog, newest first. Built.
+- **Docs** — the repo's Markdown documentation with a project-defined sidebar
+  layout. Built.
+- **Releases** — release notes per tag, with the tracks each release shipped.
+  Built.
+- **Source tree** — a gitweb-style browser of commits, trees, and files.
   Planned.
 - **API reference** — generated from source via language-specific generators
   (Go first). Planned.
-- **Issues** — the tracker (index, issues, board, per-track). Built.
-- **Releases** — release notes per tag, autolinking the issues they ship.
-  Planned.
-- **Source tree** — a gitweb-style browser of commits, trees, and files.
-  Planned.
 
-Simple config under `.gitrack/config/site/` enables/disables sections, selects a
-theme, and carries content locations and per-language options (highlighting,
-docs/API layout). A themeable template layer lets you restyle the whole site in
-one place; the built-in theme ships inline so the site works offline from
-`file://`. Autolinking of `#refs` works across every section that renders
-authored text — docs, blog, releases, issues, API prose, commit messages — not
-just issues.
+Simple config under `.gitrack/config/site/` enables or disables each section and
+says where its content lives. The shared page shell is one place to restyle the
+whole site, and the built-in theme ships inline so the site works offline from
+`file://`. Swapping in a custom theme and per-language options (highlighting,
+API layout) are planned. Autolinking of `#refs` works across every section that
+renders authored text — issues, portal, blog, docs, and releases — not just
+issues.
 
-This is the project's **complete web presence** — marketing, blog, docs, API,
-issues, releases, and source — generated from the repo and tracker with
-zero-infra, offline, host-neutral output.
+The goal is the project's **complete web presence** — marketing, blog, docs,
+issues, releases, source, and API — generated from the repo and tracker with
+zero-infra, offline, host-neutral output. Source browsing and the API reference
+are what remain.
 
 ## What it does NOT mean
 
