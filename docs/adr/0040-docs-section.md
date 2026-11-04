@@ -111,9 +111,11 @@ The docs section contributes one top-bar entry: `docs` → `docs/index.html`.
 - Right default: ADRs and similar internal records are excluded from the
   published site out of the box, so a project does not accidentally ship its
   design history to its users; publishing them is an explicit opt-in.
-- Cost accepted: nested relative links between docs pages are the doc author's
-  responsibility (standard Markdown); the section does not rewrite intra-doc
-  links beyond resolving them relative to each page's output location.
+- Convenience: a relative intra-doc link written as `[x](other.md)` — the
+  natural, GitHub-correct form — is rewritten at render time to `other.html` so
+  it resolves to the generated page (preserving any `#fragment`/`?query`).
+  Absolute URLs and non-`.md` links are left untouched. This rewrite lives in the
+  shared Markdown renderer, so it also benefits portal/blog cross-links.
 
 ## Verification
 - [ ] With `docs` enabled and a `docs/` source, every `*.md` renders to
@@ -132,4 +134,6 @@ The docs section contributes one top-bar entry: `docs` → `docs/index.html`.
       alphabetical, index/README first).
 - [ ] `#refs` in doc bodies autolink (ADR-0038); the sidebar and top bar both
       render with correct relative hrefs from nested doc pages; output is offline.
+- [ ] A relative `[x](other.md)` link in a doc body renders as `other.html`
+      (fragment/query preserved); an absolute URL or non-`.md` link is unchanged.
 - [ ] Absent source dir ⇒ the section emits nothing and leaves no top-bar entry.

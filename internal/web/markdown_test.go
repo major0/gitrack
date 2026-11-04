@@ -148,3 +148,34 @@ func TestRenderMarkdownEscapesRawHTML(t *testing.T) {
 		t.Errorf("prose around raw HTML should survive:\n%s", s)
 	}
 }
+
+func TestRenderMarkdownRewritesRelativeDocLinks(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	src := "See [concepts](concepts.md), [a section](guide/x.md#intro), " +
+		"[the site](https://example.com/x.md), and [an image](logo.png).\n"
+	got, err := renderMarkdown(repo, "", src)
+	if err != nil {
+		t.Fatalf("renderMarkdown: %v", err)
+	}
+	s := string(got)
+	// relative .md -> .html
+	if !strings.Contains(s, `href="concepts.html"`) {
+		t.Errorf("relative .md link should be rewritten to .html:\n%s", s)
+	}
+	// fragment preserved
+	if !strings.Contains(s, `href="guide/x.html#intro"`) {
+		t.Errorf("fragment should be preserved on rewrite:\n%s", s)
+	}
+	// absolute URL ending in .md is left untouched
+	if !strings.Contains(s, `href="https://example.com/x.md"`) {
+		t.Errorf("absolute .md URL must not be rewritten:\n%s", s)
+	}
+	// non-.md relative link untouched
+	if !strings.Contains(s, `href="logo.png"`) {
+		t.Errorf("non-.md link must be left alone:\n%s", s)
+	}
+}

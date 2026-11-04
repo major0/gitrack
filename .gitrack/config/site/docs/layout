@@ -1,0 +1,25 @@
+# gitrack docs site sidebar (ADR-0040). ADRs are excluded by default.
+index.md: Overview
+
+Guide
+  guide/getting-started.md: Getting started
+  guide/concepts.md: Concepts
+  guide/tracks.md: Working with tracks
+  guide/workflow.md: Status workflows
+  guide/relationships.md: Relationships
+  guide/boards.md: Boards and roadmaps
+  guide/references.md: References and autolinking
+  guide/comments.md: Comments
+  guide/commit-integration.md: Commit integration
+  guide/website.md: The project website
+  guide/configuration.md: Configuration
+  guide/publishing.md: Publishing
+
+Reference
+  reference/commands.md: Command reference
+
+Background
+  VISION.md: Vision
+  FORMAT.md: On-disk format
+  EXAMPLE.md: Worked example
+  PRIOR_ART.md: Prior art

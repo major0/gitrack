@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html/template"
 	"regexp"
+	"strings"
 
 	"github.com/major0/gitrack/internal/core"
 	"github.com/yuin/goldmark"
@@ -58,23 +59,77 @@ type autolinkTransformer struct {
 	root string
 }
 
-// Transform implements parser.ASTTransformer.
+// Transform implements parser.ASTTransformer. It does two passes over the AST:
+// rewrite relative `.md` link destinations to `.html` so intra-doc links resolve
+// to the generated pages (ADR-0040), and linkify resolvable #ref tokens in prose
+// (ADR-0030/0034).
 func (tr *autolinkTransformer) Transform(doc *ast.Document, reader text.Reader, _ parser.Context) {
 	source := reader.Source()
-	// Collect target Text nodes first; mutating during Walk is unsafe.
-	var targets []*ast.Text
+	// Collect target Text nodes and Link nodes first; mutating during Walk is
+	// unsafe.
+	var textTargets []*ast.Text
+	var linkTargets []*ast.Link
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-		if t, ok := n.(*ast.Text); ok && !inSkippedContext(t) {
-			targets = append(targets, t)
+		switch node := n.(type) {
+		case *ast.Text:
+			if !inSkippedContext(node) {
+				textTargets = append(textTargets, node)
+			}
+		case *ast.Link:
+			linkTargets = append(linkTargets, node)
 		}
 		return ast.WalkContinue, nil
 	})
-	for _, t := range targets {
+	for _, l := range linkTargets {
+		l.Destination = rewriteDocLink(l.Destination)
+	}
+	for _, t := range textTargets {
 		tr.rewriteText(t, source)
 	}
+}
+
+// mdLinkRe matches a relative link destination ending in ".md", optionally with
+// a "#fragment" or "?query", that should be rewritten to the generated ".html"
+// page (ADR-0040). Absolute URLs (scheme or leading "/") are left untouched.
+var mdLinkRe = regexp.MustCompile(`^(.+)\.md(#[^?]*|\?[^#]*|)$`)
+
+// rewriteDocLink rewrites a relative "<path>.md" link destination to
+// "<path>.html", preserving any #fragment/?query. An absolute URL (has a scheme
+// or starts with "/") or a non-.md link is returned unchanged.
+func rewriteDocLink(dest []byte) []byte {
+	s := string(dest)
+	if s == "" || strings.HasPrefix(s, "/") || hasURLScheme(s) {
+		return dest
+	}
+	m := mdLinkRe.FindStringSubmatch(s)
+	if m == nil {
+		return dest
+	}
+	return []byte(m[1] + ".html" + m[2])
+}
+
+// hasURLScheme reports whether s begins with a URL scheme like "http:" or
+// "mailto:" (so it is an absolute link, not an intra-repo path).
+func hasURLScheme(s string) bool {
+	i := strings.IndexByte(s, ':')
+	if i <= 0 {
+		return false
+	}
+	for j := 0; j < i; j++ {
+		c := s[j]
+		isAlpha := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+		isSchemeChar := isAlpha || (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.'
+		if j == 0 && !isAlpha {
+			return false
+		}
+		if !isSchemeChar {
+			return false
+		}
+	}
+	return true
 }
 
 // inSkippedContext reports whether a Text node is inside a context where #refs
