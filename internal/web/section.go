@@ -157,11 +157,18 @@ func hasSection(sections []section, name string) bool {
 // relPath under the output dir, with root as the page's path-to-site-root. The
 // nav is taken from the site context so every page shows the same bar.
 func (sc *siteContext) renderPage(relPath, root, title string, body template.HTML) error {
+	return sc.renderPageCSS(relPath, root, title, body, "")
+}
+
+// renderPageCSS is renderPage with an extra stylesheet emitted after the theme's
+// own, for a page that needs rules the rest of the site does not (ADR-0043).
+func (sc *siteContext) renderPageCSS(relPath, root, title string, body template.HTML, css template.CSS) error {
 	data := pageData{
-		Title: title,
-		Root:  root,
-		Nav:   navWithRoot(sc.nav, root),
-		Body:  body,
+		Title:    title,
+		Root:     root,
+		Nav:      navWithRoot(sc.nav, root),
+		Body:     body,
+		ExtraCSS: css,
 	}
 	if err := sc.theme.render(sc.outDir, relPath, data); err != nil {
 		return fmt.Errorf("rendering %s: %w", relPath, err)

@@ -62,8 +62,7 @@ independent, config-toggled sections over a shared theme:
 Simple config under `.gitrack/config/site/` enables or disables each section and
 says where its content lives. The shared page shell is one place to restyle the
 whole site, and the built-in theme ships inline so the site works offline from
-`file://`. Swapping in a custom theme and per-language options (highlighting,
-API layout) are planned. Autolinking of `#refs` works across every section that
+`file://`. Swapping in a custom theme and API layout options are planned. Autolinking of `#refs` works across every section that
 renders authored text — issues, portal, blog, docs, and releases — not just
 issues.
 

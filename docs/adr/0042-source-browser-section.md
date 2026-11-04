@@ -83,9 +83,9 @@ is skipped, so a malformed tree can never write outside the output directory.
   (ADR-0030), so `#refs` in a message link to their tracks, and `<script>` in a
   message is inert.
 - Symbolic links show their target; submodules are listed without a link.
-- **No syntax highlighting.** Blobs are escaped plain text with line numbers
-  (`#L12` anchors work). Highlighting must be build-time HTML with inline CSS to
-  stay offline (ADR-0038), and belongs with the planned per-language options.
+- **No syntax highlighting in this ADR.** Blobs are escaped plain text with line
+  numbers (`#L12` anchors work). Highlighting must be build-time HTML with inline
+  CSS to stay offline (ADR-0038); it was added afterwards, see ADR-0043.
 - `git track serve` does not serve this section; it is part of `web` only.
 
 ### Tracks link to the commits that mention them

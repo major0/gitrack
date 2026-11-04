@@ -41,9 +41,9 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   .crumbs{margin:.2rem 0 .6rem}
   table.tree td.size{text-align:right;white-space:nowrap}
   pre.blob{counter-reset:ln;line-height:1.35}
-  pre.blob .l{counter-increment:ln}
-  pre.blob .l::before{content:counter(ln);display:inline-block;width:3.5em;margin-right:1em;text-align:right;color:#999;user-select:none}
-  pre.blob .l:target{background:#ffd}
+  pre.blob .src-line{counter-increment:ln}
+  pre.blob .src-line::before{content:counter(ln);display:inline-block;width:3.5em;margin-right:1em;text-align:right;color:#999;user-select:none}
+  pre.blob .src-line:target{background:#ffd}
   pre.msg{white-space:pre-wrap;background:none;padding:0}
   pre.diff .add{background:#e6ffec}
   pre.diff .del{background:#ffebe9}
@@ -60,7 +60,8 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   .docs-current{font-weight:600}
   .docs-content{flex:1 1 auto;min-width:0}
   @media(max-width:48rem){.docs-layout{display:block}.docs-nav{margin-bottom:1rem}}
-</style>
+</style>{{if .ExtraCSS}}
+<style>{{.ExtraCSS}}</style>{{end}}
 </head><body>
 <nav>{{range .Nav}}<a href="{{.Href}}">{{.Label}}</a>{{end}}</nav>
 {{.Body}}

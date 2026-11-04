@@ -73,7 +73,7 @@ alone. The man page is generated from the CLI's own command data
   with no runtime server. Config-toggled sections: issues (with threaded
   comments), a portal (front page, about, contact), a blog, your Markdown docs
   with a configurable sidebar, release notes, and a gitweb-style source browser
-  (file tree, numbered files, and recent commits with patches).
+  (file tree, syntax-highlighted files, and recent commits with patches).
 - **Autolinked references** (`#slug`, `#short-id`, and cross-repo links) across
   every section that renders authored text.
 - **Boards and roadmaps** with a digraph of *unblocked work*: `git track board`

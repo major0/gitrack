@@ -21,7 +21,7 @@ var treeBodyTmpl = template.Must(template.New("tree").Parse(`
 var blobBodyTmpl = template.Must(template.New("blob").Parse(`
 ` + crumbsHTML + `
 <p class="muted">{{.Size}}{{range .Notes}} &middot; {{.}}{{end}}</p>
-{{if .CodeHTML}}<pre class="blob">{{.CodeHTML}}</pre>{{end}}`))
+{{if .CodeHTML}}<pre class="blob{{if .Highlighted}} chroma{{end}}">{{.CodeHTML}}</pre>{{end}}`))
 
 // logBodyTmpl lists the recent commits, newest first. Pure HTML.
 var logBodyTmpl = template.Must(template.New("log").Parse(`

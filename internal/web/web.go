@@ -25,10 +25,11 @@ import (
 // path prefix back to root (so links work from any subdirectory and file://),
 // the resolved navigation (each Href already root-prefixed), and the body.
 type pageData struct {
-	Title string
-	Root  string // relative path to site root, e.g. "" or "../"
-	Nav   []navItem
-	Body  template.HTML
+	Title    string
+	Root     string // relative path to site root, e.g. "" or "../"
+	Nav      []navItem
+	Body     template.HTML
+	ExtraCSS template.CSS // optional page-specific stylesheet, after the theme's
 }
 
 // Generate writes the static site for repo into outDir, overwriting prior

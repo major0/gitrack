@@ -331,10 +331,10 @@ func TestSourceHelpers(t *testing.T) {
 	if got := escapePath("dir with space/a#b%c"); got != "dir%20with%20space/a%23b%25c" {
 		t.Errorf("escapePath = %q", got)
 	}
-	if got := string(renderCode([]byte("a\nb\n"))); strings.Count(got, `class="l"`) != 2 {
+	if got := string(renderCode([]byte("a\nb\n"), nil, "").HTML); strings.Count(got, `class="src-line"`) != 2 {
 		t.Errorf("a trailing newline must not add a line: %q", got)
 	}
-	if got := string(renderCode([]byte("<b>"))); !strings.Contains(got, "&lt;b&gt;") {
+	if got := string(renderCode([]byte("<b>"), nil, "").HTML); !strings.Contains(got, "&lt;b&gt;") {
 		t.Errorf("renderCode must escape: %q", got)
 	}
 	cases := map[string]string{

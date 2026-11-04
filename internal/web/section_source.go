@@ -37,10 +37,11 @@ func (s *sourceSection) name() string { return sectionSource }
 
 // sourceSnapshot is the resolved view the section renders.
 type sourceSnapshot struct {
-	git     *gitsrc.Repo
-	ref     string
-	sha     string
-	commits int
+	git       *gitsrc.Repo
+	highlight string // chroma style name, or "off"
+	ref       string
+	sha       string
+	commits   int
 }
 
 // sourceMemo is the snapshot and log resolved once per generation.
@@ -97,7 +98,11 @@ func (s *sourceSection) resolveSnapshot(sc *siteContext) (*sourceSnapshot, error
 	if err != nil {
 		return nil, err
 	}
-	return &sourceSnapshot{git: g, ref: ref, sha: sha, commits: n}, nil
+	hl, err := readConfigValue(filepath.Join(base, "highlight"), defaultHighlightStyle)
+	if err != nil {
+		return nil, err
+	}
+	return &sourceSnapshot{git: g, ref: ref, sha: sha, commits: n, highlight: hl}, nil
 }
 
 // nav contributes one source entry, only when there is something to browse.
@@ -327,13 +332,18 @@ func (s *sourceSection) writeTree(sc *siteContext, snap *sourceSnapshot, commits
 
 // blobView is the template data for a file page.
 type blobView struct {
-	Crumbs   []crumb
-	Size     string
-	Notes    []string
-	CodeHTML template.HTML
+	Crumbs      []crumb
+	Size        string
+	Notes       []string
+	CodeHTML    template.HTML
+	Highlighted bool
 }
 
 func (s *sourceSection) writeBlobs(sc *siteContext, snap *sourceSnapshot, files []gitsrc.Entry) error {
+	hl, err := newHighlighter(snap.highlight)
+	if err != nil {
+		return err
+	}
 	blobs, err := snap.git.OpenBlobs()
 	if err != nil {
 		return err
@@ -362,33 +372,27 @@ func (s *sourceSection) writeBlobs(sc *siteContext, snap *sourceSnapshot, files 
 				view.Notes = append(view.Notes, fmt.Sprintf("showing the first %s of %s",
 					humanSize(int64(len(blob.Data))), humanSize(blob.Size)))
 			}
-			view.CodeHTML = renderCode(blob.Data)
+			code := renderCode(blob.Data, hl, e.Path)
+			view.CodeHTML, view.Highlighted = code.HTML, code.Highlighted
+			if code.Note != "" {
+				view.Notes = append(view.Notes, code.Note)
+			}
 		}
 		body, err := renderBody(blobBodyTmpl, view)
 		if err != nil {
 			return err
 		}
-		if err := sc.renderPage(page.file, root, e.Path+" - source", body); err != nil {
+		// The token stylesheet rides only on pages that were highlighted, so tree,
+		// log, and plain-text pages carry no extra weight (ADR-0043).
+		var css template.CSS
+		if view.Highlighted {
+			css = hl.css
+		}
+		if err := sc.renderPageCSS(page.file, root, e.Path+" - source", body, css); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// renderCode escapes file content into numbered lines. Each line is a span with
-// an id (L1, L2, ...) so #L12 links work; the visible number comes from a CSS
-// counter, so selecting and copying code does not pick up the numbers.
-func renderCode(data []byte) template.HTML {
-	text := strings.ToValidUTF8(string(data), "\uFFFD")
-	lines := strings.Split(text, "\n")
-	if n := len(lines); n > 0 && lines[n-1] == "" {
-		lines = lines[:n-1] // a trailing newline does not start another line
-	}
-	var b strings.Builder
-	for i, line := range lines {
-		fmt.Fprintf(&b, `<span class="l" id="L%d">%s</span>`+"\n", i+1, template.HTMLEscapeString(line))
-	}
-	return template.HTML(b.String()) //nolint:gosec // every line is HTML-escaped above
 }
 
 // ---- history ---------------------------------------------------------------

@@ -25,7 +25,8 @@ well-behaved path but cannot constrain what the tree physically contains, and
     │   └── exclude       # doc path patterns to omit from the site
     └── source/           # source browser settings
         ├── ref           # what to snapshot: branch, tag, or commit (default HEAD)
-        └── commits       # how many log entries to render (default 100)
+        ├── commits       # how many log entries to render (default 100)
+        └── highlight     # color style name, or "off" (default github)
 ```
 
 ## Kinds
@@ -117,7 +118,7 @@ internal trees, list their patterns.
 
 ## Source section
 
-Two optional single-line files under `.gitrack/config/site/source/`:
+Three optional single-line files under `.gitrack/config/site/source/`:
 
 ### `ref`
 
@@ -129,5 +130,12 @@ there is nothing to browse, so the section emits nothing.
 
 How many recent commits to list and give a page each. Absent, or not a positive
 number ⇒ `100`.
+
+### `highlight`
+
+The color style for syntax highlighting, or `off` to turn it off. Absent ⇒
+`github`. A name that is not a known style is ignored and the default is used.
+See the Highlighting section of [Browsing source](source.md) for the styles and
+the limits.
 
 See [Browsing source](source.md).

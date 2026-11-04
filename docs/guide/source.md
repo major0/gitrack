@@ -30,8 +30,9 @@ navigation entry.
 - **The tree.** `source/index.html` lists the top-level directory, directories
   first, then files with their sizes. Every directory has its own page, with
   breadcrumbs back up the path.
-- **Files.** Each file has a page with numbered lines. Click a line number, or
-  add `#L12` to the address, to link straight to a line.
+- **Files.** Each file has a page with numbered lines, syntax-highlighted when
+  its language is recognized. Click a line number, or add `#L12` to the address,
+  to link straight to a line.
 - **The log.** `source/log.html` lists recent commits, newest first, with date
   and author.
 - **Commits.** Each logged commit has a page with its message, author, date, its
@@ -73,16 +74,46 @@ Two optional files under `.gitrack/config/site/source/`, each a single line:
 |---|---|---|
 | `ref` | the branch, tag, or commit to snapshot | `HEAD` |
 | `commits` | how many log entries to render | `100` |
+| `highlight` | a color style name, or `off` | `github` |
 
 ```sh
 mkdir -p .gitrack/config/site/source
 echo v1.2.0 > .gitrack/config/site/source/ref        # snapshot a tag
 echo 250    > .gitrack/config/site/source/commits    # a longer log
+echo monokai > .gitrack/config/site/source/highlight # a different color style
 ```
 
 A `commits` value that is not a positive number is ignored and the default is
 used. A `ref` that does not resolve to a commit means there is nothing to browse,
 so the section produces nothing.
+
+## Highlighting
+
+Files are colored at generation time, so the pages contain no script and work
+offline like everything else. The language comes from the file name: its
+extension, or a well-known name such as `Makefile` or `Dockerfile`. Gitrack does
+not guess a language from a file's contents, so a file whose name it does not
+recognize, and plain `.txt` files, are shown uncolored.
+
+`highlight` picks the color style. The default is `github`, a light style. Other
+choices include `github-dark`, `monokai`, `dracula`, `nord`, `solarized-light`,
+`solarized-dark`, `vs`, and `xcode`. A name that is not a style is ignored and
+the default is used. Set it to `off` to turn highlighting off entirely.
+
+Highlighting is the slowest part of generating the source section: expect about
+a second for every 300 KB of source. To keep that bounded, three limits apply,
+and a file that hits one is shown as plain numbered text with a note saying why:
+
+- a file larger than 128 KiB is not highlighted;
+- a file that takes more than a couple of seconds to color is abandoned;
+- one generation highlights at most 32 MiB of source in total. Files are taken in
+  the same order every time, so the same repository always highlights the same
+  files, whatever the machine.
+
+For a very large repository, `off` is the way to keep generation fast. Turning
+highlighting on also makes the generated site larger, since every colored token
+is marked up. The `git-track` binary itself is about 4 MB larger for carrying the
+language definitions, whether or not you use the feature.
 
 ## Limits
 
@@ -103,8 +134,10 @@ appear there, as it would in any source viewer.
 
 ## What it does not do
 
-- **No syntax highlighting.** Files are shown as plain escaped text. Content is
-  always escaped, so a `<script>` in a source file is displayed, never run.
+- **No highlighting in patches.** A commit's patch is colored by added and removed
+  lines only, not by language, since a patch mixes languages and shows partial
+  lines. Content is always escaped, so a `<script>` in a source file or a patch is
+  displayed, never run.
 - **No live preview.** `git track serve` does not serve this section; it is part
   of `git track web` only.
 - **No per-file history.** There is no "last commit touching this file" column.
