@@ -13,7 +13,7 @@ There is a standalone bug, marked a duplicate of one issue.
 .gitrack/
 ├── config/
 │   ├── kinds                     # project\nepic\nissue\nbug\ntask\nnote
-│   └── statuses/                 # per-status transitions (ADR-0019)
+│   └── statuses/                 # per-status transitions
 │       ├── new                   # triaged\nin-progress\ndone
 │       └── in-progress           # in-review\ndone
 │
@@ -21,7 +21,7 @@ There is a standalone bug, marked a duplicate of one issue.
 │   ├── kind                      # "epic"
 │   ├── title                     # "Ship auth v2"
 │   ├── description               # markdown body
-│   ├── state                     # "open"        (fixed axis, ADR-0019)
+│   ├── state                     # "open"        (fixed axis)
 │   ├── status                    # "in-progress" (workflow axis)
 │   └── created                   # 2026-11-02T10:00:00Z
 │
@@ -36,8 +36,8 @@ There is a standalone bug, marked a duplicate of one issue.
 │       └── 0192-c1.md            # a comment
 │
 ├── 0192-issue-session/           # child issue 2
-│   ├── kind                      # "task" (default; kind is cosmetic, ADR-0006)
-│   ├── slug                      # "session-refresh" (typeable handle, ADR-0009)
+│   ├── kind                      # "task" (default; kind is cosmetic)
+│   ├── slug                      # "session-refresh" (typeable handle)
 │   ├── title                     # "Session refresh"
 │   ├── state                     # "open"
 │   ├── status                    # "in-progress"
@@ -56,7 +56,7 @@ There is a standalone bug, marked a duplicate of one issue.
         └── 0192-issue-session
 ```
 
-## What the dumb code computes from this (per ADR-0005)
+## What the dumb code computes from this
 
 Edge directions in the blocking graph (arrow points at the waiter):
 
@@ -72,7 +72,7 @@ Now the queries:
 - **Is `issue-session` unblocked?** Its only `depends-on` target is
   `issue-login`, whose `state` = `closed` (status `done` ✓). It has no children. So
   `issue-session` **is unblocked** and actionable. Its parent epic being open is
-  irrelevant to the child — the corrected direction (ADR-0005) gets this right.
+  irrelevant to the child — the blocking direction used here gets this right.
 - **Is `epic-auth` unblocked / closeable?** Its children are `issue-login`
   (done ✓) and `issue-session` (in-progress ✗). One child is open, so the epic
   is **blocked** — correct: an epic waits for its children.
@@ -82,7 +82,7 @@ Now the queries:
 - **Unblocked work frontier:** `issue-session` (its dependency is done). The epic
   waits on that remaining child; the bug is closed as duplicate.
 
-## Task lists and derived checking (ADR-0008)
+## Task lists and derived checking
 
 `0192-issue-session/description` holds a GFM task list mixing a free item and a
 dependency-backed item:
@@ -101,7 +101,7 @@ write into `issue-session`. Creating that item also materialized the
 `depends-on/0192-issue-login` link shown above, so the checklist and the
 dependency graph are the same data.
 
-## Derived referenced-by (ADR-0009)
+## Derived referenced-by
 
 Nobody typed a UUID anywhere. `issue-login`'s `referenced-by` is computed as the
 union of `git log -- .gitrack/0192-issue-login/` (every commit that touched the
@@ -110,8 +110,8 @@ opted in by slug). No `referenced-by/` directory is stored.
 
 ## Why this example earned its keep
 
-A first pass (ADR-0004) treated `child-of` as blocking the child, which would
-have wrongly reported `issue-session` blocked by its open epic. Materializing
-this tree exposed the inverted direction before any code was written, and
-ADR-0005 corrected it. The worked example is doing its job: catching modeling
-errors on paper.
+A first pass treated `child-of` as blocking the child, which would have wrongly
+reported `issue-session` blocked by its open epic. Materializing this tree
+exposed the inverted direction before any code was written, and it was
+corrected. The worked example is doing its job: catching modeling errors on
+paper.

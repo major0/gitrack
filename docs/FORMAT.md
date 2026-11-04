@@ -5,13 +5,6 @@ the contract. The CLI and every generator (web, issues, boards) read and write
 *only* what this document defines. A conforming reimplementation in any language
 that produces this layout is interoperable.
 
-Grounding decisions:
-- `docs/adr/0002-universal-object-and-identity.md` — one universal object, UUID.
-- `docs/adr/0003-smart-data-dumb-code-layout.md` — filesystem-as-database,
-  one file per field (supersedes the earlier event-log model of ADR-0001).
-- `docs/adr/0005-relationship-direction.md` — one relationship primitive and its
-  scheduling direction (supersedes ADR-0004).
-
 ## 1. Principles
 
 1. **Smart data, dumb code.** The layout carries the structure. Reading a field
@@ -23,10 +16,10 @@ Grounding decisions:
    irrelevant to storage.
 4. **Conflicts are a feature.** A single-value field is one file; two people
    setting it differently produces a git conflict for a human to resolve. This
-   is intended (proven empirically — see ADR-0003).
+   is intended (proven empirically).
 5. **Multi-value is a directory.** Appends by different people are different
    files and merge as a clean union.
-6. **Config is guardrails, not enforcement (ADR-0026).** The tree is openly
+6. **Config is guardrails, not enforcement.** The tree is openly
    editable (`cat`/`mkdir`/your editor) and merges happen outside the CLI, so
    `config/` (statuses, kinds, workflows) describes *intended* structure and
    keeps the CLI's well-behaved path consistent — it cannot constrain what the
@@ -38,7 +31,7 @@ Grounding decisions:
 
 Every mutating command (`init`, `create`, `update`, `set`, `close`, `reopen`,
 `comment`, the relationship verbs, `config status add/set-next/rm`) **commits
-its change as its own revision** (ADR-0028), using your own git identity
+its change as its own revision**, using your own git identity
 (gitrack never injects one). The commit is **scoped to `.gitrack/`**: it stages
 and commits only the tracker path via `git commit -- <paths>`, so changes you
 have staged *outside* `.gitrack/` are never captured and stay staged. The
@@ -70,12 +63,12 @@ Everything below is an application of that one rule.
 │   └── workflow/<kind>          # optional per-kind workflow (see §7)
 ├── cache/                       # DERIVED, git-ignored, local, rebuildable (§4.1)
 │   ├── state/<state>/<uuid>     #   index: tracks by state (open/closed)
-│   ├── status/<status>/<uuid>   #   index: tracks by status (ADR-0019)
+│   ├── status/<status>/<uuid>   #   index: tracks by status
 │   ├── type/<kind>/<uuid>       #   index: tracks by kind
 │   └── refs-in/<uuid>/<rel>/<referrer-uuid>   # backref index
 └── <uuid>/                      # one directory per track — AUTHORITATIVE
-    ├── kind                     # cosmetic label, default "task" (ADR-0006)
-    ├── slug                     # typeable handle, unique in repo (ADR-0009)
+    ├── kind                     # cosmetic label, default "task"
+    ├── slug                     # typeable handle, unique in repo
     ├── slug.aliases/            # prior slugs kept resolvable after a retitle
     │   └── <old-slug>
     ├── title                    # one-line summary
@@ -107,18 +100,18 @@ Everything below is an application of that one rule.
 Backward references and attribute indexes are NOT stored inside the track dir;
 they live in the git-ignored `.gitrack/cache/` (§4.1).
 
-- `<uuid>` is a UUIDv7 in canonical hyphenated form (ADR-0002). The track dir is
+- `<uuid>` is a UUIDv7 in canonical hyphenated form. The track dir is
   named by it; the id is never a path fragment that changes.
 - `slug` is an authored, human-chosen, repo-unique handle (kebab-case, derived
   from the title at creation, editable). Because tracks are keyed by UUID — not
   by a typeable git-ref — the slug is the handle humans type in references and
-  URLs (ADR-0009). The UUID stays canonical; the slug is the ergonomic alias.
+  URLs. The UUID stays canonical; the slug is the ergonomic alias.
 - Unknown files/dirs inside a track are preserved, not deleted — forward
   compatibility. A reader ignores what it does not understand.
 
 There is deliberately **no** `referenced-by/` directory. It is derived (§8.1).
 
-## 4. Relationships (ADR-0005)
+## 4. Relationships
 
 Each relationship type is a directory; each edge is a file named by the target
 UUID. The file may be empty or hold an optional note.
@@ -153,14 +146,13 @@ reverse `refs-in/` cache and blocked/unblocked status are derived. `child-of`
 enforces the single-parent convention. `git track show` prints a track's
 blocked/unblocked status computed from these edges.
 
-`git track board` renders the unblocked-work view from these edges + state
-(ADR-0027): open tracks grouped into **Ready** (no open blocker) and **Blocked**
+`git track board` renders the unblocked-work view from these edges + state: open tracks grouped into **Ready** (no open blocker) and **Blocked**
 (with the open blockers that hold them); closed tracks are omitted.
 `board --mermaid` (default graph) and `board --dot` emit the blocking digraph
 (edges point blocker → blocked, ready nodes marked) for rendering on GitHub, in
 the web view, or with Graphviz.
 
-## 4.1 The derived cache and `fsck` (ADR-0014)
+## 4.1 The derived cache and `fsck`
 
 Forward links above are the **source of truth**. Everything that inverts or
 indexes them is a single **git-ignored local cache** under `.gitrack/cache/` —
@@ -169,11 +161,11 @@ rebuildable, never committed, never merged. It provides fast entrypoints:
 - `cache/refs-in/<uuid>/<rel>/<referrer-uuid>` — who points at this track
   (reverse of the forward links; the basis for blocked/rollup queries).
 - `cache/state/<state>/<uuid>`  — members currently in `<state>` (open/closed).
-- `cache/status/<status>/<uuid>` — members currently in `<status>` (ADR-0019).
+- `cache/status/<status>/<uuid>` — members currently in `<status>`.
 - `cache/type/<kind>/<uuid>`    — members of `<kind>`.
 - future indexes live here too; the cache has no fixed schema.
 
-Properties (all from ADR-0014):
+Properties:
 
 - **Not committed.** `.gitrack/.gitignore` contains `/cache/`, so the cache never
   enters a commit and therefore never travels through a merge. The committed
@@ -188,7 +180,7 @@ Properties (all from ADR-0014):
 Maintenance: every mutating command (`create|update|edit|close`) updates the
 cache, and `gitrack fsck` rebuilds it entirely from the authoritative objects.
 Because the cache is not in git, the committed-index merge-desync hazard that an
-earlier design (ADR-0013) had to reconcile is **structurally impossible** — a
+earlier design had to reconcile is **structurally impossible** — a
 `post-merge` hook's only job is to rebuild the local cache, a safe local
 operation. `fsck` also flags dangling forward links (to nonexistent tracks) and
 unresolvable cross-repo refs (§8.1).
@@ -197,7 +189,7 @@ unresolvable cross-repo refs (§8.1).
 
 `comments/<uuid>.md` — one file per comment, append-only directory (concurrent
 comments merge cleanly). `<uuid>` is a UUIDv7, so comments minted offline on
-different branches never collide and the id is stable across edits (ADR-0023). A
+different branches never collide and the id is stable across edits. A
 content SHA was rejected: editing a comment would change its id and break
 `reply-to` references.
 
@@ -220,17 +212,17 @@ The comment body in Markdown.
 ```
 
 The thread tree is reconstructed from each comment's `reply-to`; absence means a
-top-level comment. `get <ref>.comments` lists bare comment UUIDs (ADR-0022). The
+top-level comment. `get <ref>.comments` lists bare comment UUIDs. The
 `web` generator renders comments as a **threaded tree** on the track page:
 replies nest under their parent (an orphaned reply falls back to top-level),
-each comment shows its git-derived author and date (ADR-0023, not stored), and
-`#refs` in comment bodies are autolinked (ADR-0030).
+each comment shows its git-derived author and date (derived, not stored), and
+`#refs` in comment bodies are autolinked.
 
 Comments are written with `git track comment <ref>`: `-m <msg>` for a
 non-interactive body, or (no `-m`) `$EDITOR` opens on a temp file; `--reply-to
 <cid>` sets the `reply-to` and seeds the editor with the parent cite-quoted as a
 Markdown blockquote (git-commit style). The body is stored verbatim; any `#`refs
-and URLs in it are rendered by the web/issues generator (ADR-0011), not at write
+and URLs in it are rendered by the web/issues generator, not at write
 time.
 
 ## 6. Attachments
@@ -256,12 +248,12 @@ rules merge with the code.
 
 ```
 .gitrack/config/
-├── kinds                 # allowed kinds, one per line (cosmetic, ADR-0006)
-└── statuses/             # one file per user-defined status (ADR-0019)
+├── kinds                 # allowed kinds, one per line (cosmetic)
+└── statuses/             # one file per user-defined status
     └── <status>          #   that status's allowed next statuses, one per line
 ```
 
-### State and status: two axes (ADR-0019)
+### State and status: two axes
 
 A track has two single-valued lifecycle fields:
 
@@ -288,12 +280,12 @@ in-review
 done
 ```
 
-Workflows are edited with `git track config status` (ADR-0025), not by hand:
+Workflows are edited with `git track config status`, not by hand:
 `config status add <name> [--next a,b,c]`, `config status set-next <name>
 [next...]`, `config status list`, `config status rm <name>`. Transition targets
 are validated to be existing statuses; the three built-ins cannot be removed.
 
-## 8. Task lists in descriptions (ADR-0008)
+## 8. Task lists in descriptions
 
 A `description` may contain GitHub-Flavored-Markdown task lists. Two item kinds:
 
@@ -308,12 +300,12 @@ A `description` may contain GitHub-Flavored-Markdown task lists. Two item kinds:
   `depends-on/<uuid>` link, so the checklist and the graph are one source of
   truth. Closing the referenced track changes only its own `state` file, yet
   every dependent checklist shows it checked on next render — no cascading
-  writes (ADR-0007/0009).
+  writes.
 
 A plain GitHub preview still shows a normal task list; the derived checking is a
 gitrack-render enhancement, so the format degrades gracefully.
 
-## 8.1 Reference syntax (ADR-0011)
+## 8.1 Reference syntax
 
 A reference starts with `#` and resolves to a track UUID. Tracks are keyed by
 UUID (not a typeable git-ref), so several typeable forms resolve to one:
@@ -332,11 +324,11 @@ slug may not be pure hex — enforced at mint). From a code commit, the
 A cross-repo ref `#<repo-url>?track=<uuid>` renders (in the web output) as an
 **external link to the remote repo**, labeled with the repo name + short uuid —
 parsed and linked with **no network fetch**, so rendering stays offline and
-trust-safe (ADR-0034). Reading the remote track's title/state would require a
+trust-safe. Reading the remote track's title/state would require a
 fetch and is deliberately out of the render path; it is possible future opt-in
 work, never a render-time network call.
 
-## 8.2 Accessor paths — `get` / `set` (ADR-0021)
+## 8.2 Accessor paths — `get` / `set`
 
 Because a field is a file and a multi-value attribute is a directory, a track is
 addressable by a dotted path `<ref>.<key>[.<key>...]` that maps straight onto
@@ -350,28 +342,27 @@ contain `.`) from the key path; further `.` segments descend.
   (see below) is stripped from the listing.
 - `get <ref>.<attr>.<id>` — a nested entry by bare id. If the attribute declares
   a storage suffix, it is appended to find the file; resolution never strips an
-  arbitrary extension (ADR-0022). So `comments.<uuid>` reads
+  arbitrary extension. So `comments.<uuid>` reads
   `comments/<uuid>.md` because `.md` is the comments attribute's declared suffix.
 
 Storage suffix: a multi-value attribute may store its entries with a fixed
 suffix marking the on-disk file type — `comments` entries are `<id>.md`
 (Markdown). The suffix is a storage detail, never part of the id, the command,
-or the listing (ADR-0022).
+or the listing.
 - `set <ref>.<key> <value>` — writes a **free-form** field only (`title`,
   `description`, `kind`, ...). The **governed** fields `state` and `status` are
   refused with a redirect to `close`/`reopen` and `update --status`, so the
-  lifecycle (ADR-0019) keeps a single validated path. `update` remains the
+  lifecycle keeps a single validated path. `update` remains the
   human-friendly, invariant-aware multi-field editor.
 
 In rendered output (the `web` generator), a `#<ref>` in a description — a slug,
 short-uuid, or full uuid — is **autolinked** to that track's page when it
-resolves to an existing track (ADR-0030); a non-resolving `#` stays plain text.
+resolves to an existing track; a non-resolving `#` stays plain text.
 Links are relative, so they work offline and from a moved site. Comment bodies
 use the same autolinker when rendered.
 
 `git track commit [<id>...] [-m <msg>] [--status <s>] [-- <file>...]` processes
-the **commit message's own directives** and bundles the result as one revision
-(ADR-0033). gitrack obtains the message (from `-m`, else `$EDITOR`), parses every
+the **commit message's own directives** and bundles the result as one revision. gitrack obtains the message (from `-m`, else `$EDITOR`), parses every
 `<verb> #<handle>` in it — `closes`/`resolves`/`fixes` → **close the track**,
 `relates to`/`related to` → relate (informational), bare `#<id>` → mention —
 applies the closing directives, stages the tracker changes, and commits. With
@@ -380,17 +371,17 @@ pathspec it commits the staged index. A positional `<id>` (or `--resolve <id>`)
 is sugar that injects a `closes #<slug>` directive; `--status` sets the closing
 status. So writing `closes #login` in the message and committing through gitrack
 closes the track in the same commit as the code. Passively observing a `closes`
-commit never auto-closes (ADR-0031); state changes only via `git track close` or
+commit never auto-closes; state changes only via `git track close` or
 this command.
 
-A track's **mentions** are derived from git history (ADR-0031, never stored):
+A track's **mentions** are derived from git history (never stored):
 commits whose message references the track via `#<handle>`, classified by the
 keyword that governs it. Closing keywords (GitHub + GitLab union) are
 `close`/`closes`/`closed`/`closing`, `fix`/`fixes`/`fixed`/`fixing`,
 `resolve`/`resolves`/`resolved`/`resolving`, and
 `implement`/`implements`/`implemented`/`implementing`; relates keywords are
 `relate`/`relates`/`related` (`relates to`, `related to`). A keyword governs the
-**whole list** of refs that follows it (ADR-0035, the GitLab behavior): `Closes
+**whole list** of refs that follows it (the GitLab behavior): `Closes
 #a #b #c`, `Resolves #a, #b, #c`, and `Closes #a, #b, and #c` all attribute
 `closes` to every listed track; `fixes #d, resolve #e` also works (a keyword
 before each). Matching is case-insensitive, so Conventional-Commit footers
@@ -401,20 +392,19 @@ track — gitrack has no server; closing is the explicit `git track close`.
 
 ## 9. Derived views (the "dumb code" contract)
 
-Authored data is read directly; derived data is computed, never stored
-(ADR-0009). A reader:
+Authored data is read directly; derived data is computed, never stored. A reader:
 
 - **Field value:** read the file. Done.
 - **Multi-value attribute:** list the directory. Done.
-- **Closed?** read `state`; closed iff `state == closed` (ADR-0019).
+- **Closed?** read `state`; closed iff `state == closed`.
 - **Unblocked?** every target in `depends-on/` is closed, AND every child
-  (track whose `child-of/` points here) is closed (ADR-0005 directions).
+  (track whose `child-of/` points here) is closed.
 - **Comment thread:** read each `comments/*.md` front matter, order by `reply-to`.
 - **`referenced-by`** (DERIVED, never stored): the union of
   - `git log -- .gitrack/<uuid>/` — commits that touched this track (structural;
     needs no typed reference, cannot drift), and
   - `git log --grep='Gitrack-Ref: <ref>'` for the track's slug and aliases —
-    code commits that explicitly opted in (ADR-0011 trailer).
+    code commits that explicitly opted in.
 - **Inverse edges** (`blocks`, `parent-of`), **rollup/progress**, and
   **dependency-backed checkbox state:** all computed from authored data.
 
@@ -422,7 +412,7 @@ No fold, no replay, no authoritative cache. The git-ignored `.gitrack/cache/`
 (§4.1) memoizes these derived results for speed and is always regenerable by
 `gitrack fsck`; it is never the source of truth.
 
-## 9.1 Live preview — `git track serve` (ADR-0024)
+## 9.1 Live preview — `git track serve`
 
 `git track serve` starts a **loopback-only** HTTP server on a random port
 (default `127.0.0.1:0`) and prints its URL, in the spirit of `hugo server`. It
@@ -430,17 +420,17 @@ renders the **current tracker state live** — each request reads the authoritat
 tree, so a track created or changed after startup appears on the next request
 with no restart. Routes mirror the static site: `/` (track index), `/issues` (open/closed issues
 view), `/track/<id>` (one track), and `/board` (the Ready/Blocked view plus the
-dependency digraph rendered in-browser via Mermaid, ADR-0027). It is read-only (no mutation endpoint) and refuses any
+dependency digraph rendered in-browser via Mermaid). It is read-only (no mutation endpoint) and refuses any
 non-loopback bind. The Git-Web source-code view and live-reload push are planned
 follow-ons.
 
-## 9.2 Static site — `git track web` (ADR-0029)
+## 9.2 Static site — `git track web`
 
 `git track web --out <dir>` generates a **self-contained static site** from the
 tracker: a tracks index, an **issues view** (`issues.html` — GitHub-style, open
 tracks over closed, each row showing status/kind/labels/assignees and linking to
-the track page), a page per track, and a board page. Per ADR-0029
-the output is offline-capable and host-neutral — inline CSS (no external
+the track page), a page per track, and a board page. The output
+is offline-capable and host-neutral — inline CSS (no external
 stylesheet), all links relative (works from `file://` or any subpath), and no
 network dependency for core content. The board's dependency digraph is a
 progressive enhancement (Mermaid) sitting above the always-present HTML
@@ -448,7 +438,7 @@ Ready/Blocked lists, so the page stays usable offline.
 
 Because the output is a plain directory with no host coupling, it deploys the
 same way everywhere: `aws s3 sync`, a copy to a shared drive, `rsync`, an IPFS
-add, or the GitHub Pages workflow (ADR-0010) — the decentralized, no-hosted-
+add, or the GitHub Pages workflow — the decentralized, no-hosted-
 service story (docs/VISION.md). `git track serve` is the live local preview;
 `git track web` is the deployable snapshot.
 
@@ -458,11 +448,11 @@ The tracker is meant to replace a hosted issue tracker, so it ships a CI
 workflow that rebuilds and deploys a static site on every commit touching the
 tracker (`on: push`, `paths: ['.gitrack/**']`), using the standard GitHub Pages
 deploy actions. The generated site reads only this format and is purely derived;
-see `docs/adr/0010-publishing.md` and the web/issues generators (later work).
+see [Publishing](guide/publishing.md) for a ready-made workflow.
 
 ## 11. Open questions to resolve through scenarios
 
-- **Resolved (ADR-0019):** two axes — a fixed `state` (`open`/`closed`) changed
+- **Resolved:** two axes — a fixed `state` (`open`/`closed`) changed
   only by `new`/`close`/`reopen`, and a customizable `status` workflow (built-ins
   `new`/`reopened`/`done` plus user-defined statuses with per-status transitions)
   moved by `update -s`.

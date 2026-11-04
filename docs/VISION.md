@@ -32,20 +32,17 @@ history, issues, comments, relationships, boards — offline and complete.
 
 ## What this commits the design to
 
-- The on-disk format is the source of truth and is portable by git alone
-  (ADR-0003); nothing requires a central service.
+- The on-disk format is the source of truth and is portable by git alone; nothing requires a central service.
 - Every rendered view must be **static** and deployable to a dumb host or opened
-  as `file://` — no runtime server in the deployment path. `git track serve`
-  (ADR-0024) is a local *preview* convenience, never the deployment.
-- Publishing targets are transport-agnostic: GitHub Pages today (ADR-0010), and
-  S3 / shared drive / IPFS / bundle as first-class static-sync targets over time
-  (ADR-0029).
+  as `file://` — no runtime server in the deployment path. `git track serve` is a local *preview* convenience, never the deployment.
+- Publishing targets are transport-agnostic: GitHub Pages today, and
+  S3 / shared drive / IPFS / bundle as first-class static-sync targets over time.
 
 ## The project website (the site generator's shape)
 
 `git track web` renders the **whole project website** as one themeable static
 site, so a project needs no second static-site tool. It is built from
-independent, config-toggled sections over a shared theme (ADR-0036/0037):
+independent, config-toggled sections over a shared theme:
 
 - **Portal** — front page, about, contact, and a news **blog**. Planned.
 - **Docs** — the repo's Markdown documentation with a project-defined layout.
@@ -68,8 +65,7 @@ just issues.
 
 This is the project's **complete web presence** — marketing, blog, docs, API,
 issues, releases, and source — generated from the repo and tracker with
-zero-infra, offline, host-neutral output. (ADR-0037 supersedes the earlier
-boundary that reserved the marketing site for separate tooling.)
+zero-infra, offline, host-neutral output.
 
 ## What it does NOT mean
 
@@ -77,7 +73,7 @@ boundary that reserved the marketing site for separate tooling.)
   which can themselves be decentralized (a shared drive, an S3 remote), not a
   hosted tracker.
 - Not anti-GitHub: GitHub Pages is a fine static host, and the `#<repo-url>`
-  cross-repo reference (ADR-0011) spans repositories wherever they live.
+  cross-repo reference spans repositories wherever they live.
 - Not an application framework: the site is fully static and offline by
-  construction (ADR-0029). It renders the project's whole web presence from the
+  construction. It renders the project's whole web presence from the
   repo and tracker, but it runs no server in the deployment path.
