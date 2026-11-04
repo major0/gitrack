@@ -166,3 +166,79 @@ func TestDocsAbsentSourceEmitsNothing(t *testing.T) {
 		t.Errorf("no docs nav entry expected with no source:\n%s", index)
 	}
 }
+
+func TestDocsExcludesAdrByDefault(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	enableSections(t, repo, sectionIssues, sectionDocs)
+	writeRepoFile(t, repo, "docs/intro.md", "# Introduction\n\nuser facing\n")
+	writeRepoFile(t, repo, "docs/adr/0001-thing.md", "# ADR 1\n\ninternal design\n")
+
+	out := filepath.Join(t.TempDir(), "site")
+	if _, err := Generate(repo, out); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	// user-facing doc renders
+	if _, err := os.Stat(filepath.Join(out, "docs", "intro.html")); err != nil {
+		t.Errorf("intro should render: %v", err)
+	}
+	// ADR is excluded by default: no page, not in the sidebar's Other group
+	if _, err := os.Stat(filepath.Join(out, "docs", "adr", "0001-thing.html")); !os.IsNotExist(err) {
+		t.Errorf("ADR page should NOT render by default (err=%v)", err)
+	}
+	landing := readOut(t, out, "docs/index.html")
+	if strings.Contains(landing, "ADR 1") || strings.Contains(landing, "adr/0001") {
+		t.Errorf("ADRs must not appear in the sidebar by default:\n%s", landing)
+	}
+}
+
+func TestDocsExcludeEmptyPublishesEverything(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	enableSections(t, repo, sectionIssues, sectionDocs)
+	writeRepoFile(t, repo, "docs/adr/0001-thing.md", "# ADR 1\n\ndesign\n")
+	// an authored-but-empty exclude file opts into publishing everything
+	writeSiteFile(t, repo, "docs/exclude", "# publish all\n")
+
+	out := filepath.Join(t.TempDir(), "site")
+	if _, err := Generate(repo, out); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "docs", "adr", "0001-thing.html")); err != nil {
+		t.Errorf("ADR should render when exclude is empty (opt-in): %v", err)
+	}
+}
+
+func TestDocsExcludeCustomPattern(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := core.Init(dir)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	enableSections(t, repo, sectionIssues, sectionDocs)
+	writeRepoFile(t, repo, "docs/guide.md", "# Guide\n\npublic\n")
+	writeRepoFile(t, repo, "docs/design-internal.md", "# Internal\n\nhidden\n")
+	writeRepoFile(t, repo, "docs/adr/0001.md", "# ADR\n\nhidden\n")
+	// custom excludes: a glob and the adr subtree
+	writeSiteFile(t, repo, "docs/exclude", "*-internal\nadr\n")
+
+	out := filepath.Join(t.TempDir(), "site")
+	if _, err := Generate(repo, out); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "docs", "guide.html")); err != nil {
+		t.Errorf("guide should render: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "docs", "design-internal.html")); !os.IsNotExist(err) {
+		t.Errorf("*-internal doc should be excluded (err=%v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "docs", "adr", "0001.html")); !os.IsNotExist(err) {
+		t.Errorf("adr subtree should be excluded (err=%v)", err)
+	}
+}

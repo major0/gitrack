@@ -18,6 +18,12 @@ const docsConfigDir = siteConfigDir + "/docs"
 // configured (ADR-0040).
 const defaultDocsSource = "docs"
 
+// defaultDocsExcludes are the doc path patterns omitted from the published site
+// when no exclude file is authored (ADR-0040): the ADR subtree, which holds
+// internal design records not meant for users of the tooling. A project can
+// override this with its own exclude file (empty publishes everything).
+var defaultDocsExcludes = []string{"adr"}
+
 // docsSection renders the project's Markdown documentation with a configurable
 // sidebar layout (ADR-0040). Content is the repo's own docs dir (configurable),
 // rendered via renderMarkdown (ADR-0038); output goes under the fixed docs/
@@ -142,13 +148,27 @@ func (s *docsSection) discover(sc *siteContext) (map[string]string, []string, er
 	if err != nil || !info.IsDir() {
 		return nil, nil, nil //nolint:nilerr // missing source dir => no docs (ADR-0026)
 	}
+	excludes, err := s.excludes(sc)
+	if err != nil {
+		return nil, nil, err
+	}
 	docs := map[string]string{}
 	var order []string
 	walkErr := filepath.WalkDir(sourceDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+		if d.IsDir() {
+			// Skip an entire excluded subtree (e.g. adr/) without descending.
+			if path != sourceDir {
+				relDir, rerr := filepath.Rel(sourceDir, path)
+				if rerr == nil && docExcluded(filepath.ToSlash(relDir), excludes) {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".md") {
 			return nil
 		}
 		relFS, err := filepath.Rel(sourceDir, path)
@@ -156,6 +176,9 @@ func (s *docsSection) discover(sc *siteContext) (map[string]string, []string, er
 			return err
 		}
 		rel := strings.TrimSuffix(filepath.ToSlash(relFS), ".md")
+		if docExcluded(rel, excludes) {
+			return nil // internal doc: in the repo, not on the site (ADR-0040)
+		}
 		docs[rel] = pageTitle(path, lastBase(rel))
 		order = append(order, rel)
 		return nil
@@ -165,6 +188,52 @@ func (s *docsSection) discover(sc *siteContext) (map[string]string, []string, er
 	}
 	sort.Strings(order)
 	return docs, order, nil
+}
+
+// excludes returns the doc exclusion patterns: the authored
+// .gitrack/config/site/docs/exclude lines, or defaultDocsExcludes when the file
+// is absent. An authored-but-empty file publishes everything (ADR-0040).
+func (s *docsSection) excludes(sc *siteContext) ([]string, error) {
+	path := filepath.Join(sc.repo.Root, core.Dir, docsConfigDir, "exclude")
+	raw, err := readConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		return defaultDocsExcludes, nil
+	}
+	var pats []string
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		pats = append(pats, strings.TrimSuffix(line, "/"))
+	}
+	return pats, nil
+}
+
+// docExcluded reports whether a doc rel path (slash-separated, no extension)
+// matches any exclusion pattern: equal to the rel path, a leading path segment
+// of it, or a base-name glob (ADR-0040).
+func docExcluded(rel string, patterns []string) bool {
+	base := lastBase(rel)
+	for _, p := range patterns {
+		if p == rel {
+			return true
+		}
+		// p is a leading path segment: "adr" matches "adr" and "adr/0001".
+		if rel == p || strings.HasPrefix(rel, p+"/") {
+			return true
+		}
+		// base-name glob, e.g. "*-internal".
+		if strings.ContainsAny(p, "*?[") {
+			if ok, _ := filepath.Match(p, base); ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // sourceDir returns the absolute docs source directory: the configured path

@@ -33,6 +33,28 @@ stable). Bodies render through `renderMarkdown` (ADR-0038), so `#refs` and
 relative Markdown links work; a landing page is written to `docs/index.html`
 (see Layout).
 
+### Published docs are not all repo docs: internal docs are excluded
+The repo's `docs/` tree mixes **user-facing documentation** with **internal
+design records** — ADRs, prior-art surveys, on-disk-format specs — that are
+written for contributors, not for users of the tooling. The published docs site
+must render the former and omit the latter.
+
+Exclusions are declared in `.gitrack/config/site/docs/exclude`, one path pattern
+per line, matched against each doc's rel path (slash-separated, no extension). A
+pattern matches a doc when it equals the rel path, equals a leading path segment
+of it, or is a `*` glob on the base name:
+- `adr` or `adr/` excludes the whole `adr/` subtree;
+- `CONTRIBUTING` excludes that one doc;
+- `*-internal` excludes docs whose base name ends in `-internal`.
+
+**Default when the file is absent:** exclude `adr` (the ADR subtree), because
+ADRs are internal design records by strong convention and should not appear on a
+project's user-facing docs site. A project that *does* want to publish its ADRs
+sets an explicit `exclude` file (empty, or without `adr`); a project with other
+internal trees adds them. Excluded docs stay in the repo and in git history —
+they are simply not rendered into the site and never appear in the sidebar
+(including the auto "Other" group) or autolink doc targets.
+
 ### Navigation layout: project-defined, with an auto fallback
 The sidebar is declared in `.gitrack/config/site/docs/layout`, an ordered,
 indentation-nested list of entries. Each non-blank, non-`#` line is:
@@ -84,7 +106,11 @@ The docs section contributes one top-bar entry: `docs` → `docs/index.html`.
 - Harder: a layout parser (indentation tree + page/group classification) and an
   auto-layout walker; both are small and data-driven (smart data, dumb code).
 - Safe: unmatched layout entries degrade to labels (never break generation), and
-  unlisted docs are still rendered and surfaced under "Other" so nothing is lost.
+  unlisted (but not excluded) docs are still rendered and surfaced under "Other"
+  so nothing user-facing is lost.
+- Right default: ADRs and similar internal records are excluded from the
+  published site out of the box, so a project does not accidentally ship its
+  design history to its users; publishing them is an explicit opt-in.
 - Cost accepted: nested relative links between docs pages are the doc author's
   responsibility (standard Markdown); the section does not rewrite intra-doc
   links beyond resolving them relative to each page's output location.
@@ -97,7 +123,11 @@ The docs section contributes one top-bar entry: `docs` → `docs/index.html`.
 - [ ] A `layout` file sets sidebar order/nesting; group headings nest their
       children; a page entry links to its doc with the chosen/derived label.
 - [ ] A layout entry pointing at a missing doc renders as a plain label (no
-      error); a doc not in the layout still renders and appears under "Other".
+      error); a doc not in the layout (and not excluded) still renders and
+      appears under "Other".
+- [ ] With no `exclude` file, the `adr` subtree is omitted by default: no
+      `docs/adr/*.html` pages, no ADR entries in the sidebar. An explicit
+      `exclude` file overrides the default (empty ⇒ publish everything).
 - [ ] Absent `layout` ⇒ an auto sidebar from the directory tree (dirs as groups,
       alphabetical, index/README first).
 - [ ] `#refs` in doc bodies autolink (ADR-0038); the sidebar and top bar both
