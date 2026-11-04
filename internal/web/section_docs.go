@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/major0/gitrack/internal/core"
@@ -17,6 +18,12 @@ const docsConfigDir = siteConfigDir + "/docs"
 // defaultDocsSource is the repo-relative docs directory used when no source is
 // configured (ADR-0040).
 const defaultDocsSource = "docs"
+
+// defaultTOCMin is how many h2/h3 headings a docs page needs before it gets a
+// table of contents. It was chosen from the published docs' own distribution:
+// pages of 8 or more headings are the ones you scroll to find a section in
+// (ADR-0046).
+const defaultTOCMin = 8
 
 // defaultDocsExcludes are the doc path patterns omitted from the published site
 // when no exclude file is authored (ADR-0040): the ADR subtree, which holds
@@ -89,7 +96,11 @@ func (s *docsSection) render(sc *siteContext) error {
 
 // writeDocPage renders one doc body plus the sidebar into a docs page.
 func (s *docsSection) writeDocPage(sc *siteContext, relPath, root, title, body string, tree []*navNode) error {
-	md, err := sc.markdown(root, body)
+	tocMin, err := s.tocMin(sc)
+	if err != nil {
+		return err
+	}
+	md, err := sc.markdownTOC(root, body, tocMin)
 	if err != nil {
 		return err
 	}
@@ -188,6 +199,29 @@ func (s *docsSection) discover(sc *siteContext) (map[string]string, []string, er
 	}
 	sort.Strings(order)
 	return docs, order, nil
+}
+
+// tocMin returns the heading count at which a docs page gets a table of contents,
+// from .gitrack/config/site/docs/toc: "off" or "0" disables it, a positive number
+// sets the threshold, and anything else (or no file) uses defaultTOCMin. A bad
+// value never fails generation (ADR-0026).
+func (s *docsSection) tocMin(sc *siteContext) (int, error) {
+	v, err := readConfigValue(filepath.Join(sc.repo.Root, core.Dir, docsConfigDir, "toc"), "")
+	if err != nil {
+		return 0, err
+	}
+	if strings.EqualFold(v, "off") {
+		return 0, nil
+	}
+	if n, perr := strconv.Atoi(v); perr == nil {
+		switch {
+		case n == 0:
+			return 0, nil
+		case n > 0:
+			return n, nil
+		}
+	}
+	return defaultTOCMin, nil
 }
 
 // excludes returns the doc exclusion patterns: the authored

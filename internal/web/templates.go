@@ -38,6 +38,11 @@ var baseTmpl = template.Must(template.New("base").Parse(`<!doctype html>
   ul.posts{list-style:none;padding:0}
   ul.posts li{padding:.4rem 0;border-bottom:1px solid #f0f0f0}
   ul.posts .date{color:#777;font-size:.9em;margin-right:.5rem}
+  .toc{border:1px solid #e4e4e4;background:#fafafa;border-radius:4px;padding:.5rem .9rem;margin:1rem 0;font-size:.95em}
+  .toc-title{margin:0 0 .3rem;font-weight:600;color:#555}
+  .toc ul{list-style:none;margin:0;padding-left:0}
+  .toc ul ul{padding-left:1.1rem}
+  .toc li{margin:.15rem 0}
   .anchor{margin-left:.35em;font-size:0;text-decoration:none;color:#999;opacity:0}
   .anchor::after{content:"\00b6";content:"\00b6" / "";font-size:1rem}
   h1:hover>.anchor,h2:hover>.anchor,h3:hover>.anchor,h4:hover>.anchor,h5:hover>.anchor,h6:hover>.anchor,.anchor:focus{opacity:1}

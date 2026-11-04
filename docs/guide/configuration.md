@@ -23,7 +23,8 @@ well-behaved path but cannot constrain what the tree physically contains, and
     ├── docs/             # docs section settings
     │   ├── source        # repo-relative docs source dir (default "docs")
     │   ├── layout        # docs sidebar tree
-    │   └── exclude       # doc path patterns to omit from the site
+    │   ├── exclude       # doc path patterns to omit from the site
+    │   └── toc           # headings needed for a contents list, or "off" (default 8)
     └── source/           # source browser settings
         ├── ref           # what to snapshot: branch, tag, or commit (default HEAD)
         └── commits       # how many log entries to render (default 100)
@@ -71,7 +72,7 @@ Both support an optional `title:`/`date:` front-matter block. See
 
 ## Docs section
 
-Three files under `.gitrack/config/site/docs/`:
+Four files under `.gitrack/config/site/docs/`:
 
 ### `source`
 
@@ -115,6 +116,14 @@ autolink targets. A pattern matches an exact rel path, a leading path segment
 architecture decision records are internal design docs, not user-facing. To
 publish everything, add an explicit `exclude` file (empty is fine); to hide more
 internal trees, list their patterns.
+
+### `toc`
+
+A single line controlling the "On this page" list on long docs pages. It is a
+whole number, the fewest `##` and `###` headings a page needs before it gets a
+list, or `off` (or `0`) for none. Absent ⇒ `8`. Anything else, including a
+negative number, is ignored and the default is used. See
+[The project website](website.md).
 
 ## Source section
 

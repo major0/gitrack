@@ -106,6 +106,10 @@ by the docs it produces, but in short:
   omit from the published site. By default the `adr/` subtree is excluded, since
   architecture decision records are internal, not user-facing. Set an explicit
   (even empty) `exclude` file to publish everything.
+- **Table of contents**: a page with 8 or more `##` and `###` headings gets an
+  "On this page" list of links to its sections, placed after the introduction and
+  before the first section. `.gitrack/config/site/docs/toc` changes the threshold,
+  or turns the list off with `off`. See below.
 
 See [Configuration](configuration.md) for the exact config files.
 
@@ -128,6 +132,24 @@ for your README on GitHub, such as `[install](#install)` or
 Because the id comes from the heading's words, renaming a heading changes its
 address and breaks any link that used the old one, so search your pages for the
 old fragment when you rename a section.
+
+## The table of contents on long docs pages
+
+Docs pages only (not blog, portal, or release notes). The list shows the page's
+`##` and `###` headings in order, with each `###` indented under the `##` before
+it. It does not show the page's `#` title, headings below `###`, or headings that
+sit inside a quote, a list, or a code block. Each entry is the heading's words as
+plain text, linked to that section.
+
+Eight listed headings is the default point at which a page counts as long. To
+change it, put a number in `.gitrack/config/site/docs/toc`:
+
+```sh
+echo 5   > .gitrack/config/site/docs/toc    # a contents list from 5 headings up
+echo off > .gitrack/config/site/docs/toc    # never add one (0 does the same)
+```
+
+Anything that is not `off` or a number is ignored and the default is used.
 
 ## Code blocks in Markdown pages
 

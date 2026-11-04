@@ -47,6 +47,9 @@ type markdownOpts struct {
 	repo *core.Repo
 	root string
 	hl   *highlighter
+	// tocMin adds a table of contents when the document has at least this many
+	// h2/h3 headings; 0 (the default) adds none (ADR-0046).
+	tocMin int
 }
 
 // mdResult is rendered Markdown plus the stylesheet its highlighted code needs.
@@ -62,7 +65,7 @@ func renderMarkdownWith(o markdownOpts, src string) (mdResult, error) {
 	transformers := []util.PrioritizedValue{
 		// lower runs first: ids come from the authored heading text, before the
 		// autolinker rewrites any #refs inside it
-		util.Prioritized(headingAnchorTransformer{}, 50),
+		util.Prioritized(headingAnchorTransformer{tocMin: o.tocMin}, 50),
 		util.Prioritized(&autolinkTransformer{repo: o.repo, root: o.root}, 100),
 	}
 	fences := &fenceHighlighter{hl: o.hl}
@@ -73,7 +76,7 @@ func renderMarkdownWith(o markdownOpts, src string) (mdResult, error) {
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(parser.WithASTTransformers(transformers...)),
 		goldmark.WithRendererOptions(renderer.WithNodeRenderers(
-			util.Prioritized(highlightedCodeRenderer{}, 500),
+			util.Prioritized(rawBlockRenderer{}, 500),
 		)),
 	)
 	var buf bytes.Buffer

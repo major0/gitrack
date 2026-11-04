@@ -69,11 +69,17 @@ func (sc *siteContext) highlighter() (*highlighter, error) {
 // code blocks are colored. The result's CSS is non-empty only if a block was
 // highlighted; the caller attaches it to the page (ADR-0045).
 func (sc *siteContext) markdown(root, src string) (mdResult, error) {
+	return sc.markdownTOC(root, src, 0)
+}
+
+// markdownTOC is markdown plus a table of contents when the document has at least
+// tocMin h2/h3 headings (0 for none).
+func (sc *siteContext) markdownTOC(root, src string, tocMin int) (mdResult, error) {
 	hl, err := sc.highlighter()
 	if err != nil {
 		return mdResult{}, err
 	}
-	return renderMarkdownWith(markdownOpts{repo: sc.repo, root: root, hl: hl}, src)
+	return renderMarkdownWith(markdownOpts{repo: sc.repo, root: root, hl: hl, tocMin: tocMin}, src)
 }
 
 // highlighter turns source text into per-line HTML using chroma, as classed
