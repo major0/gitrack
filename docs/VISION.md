@@ -61,10 +61,12 @@ independent, config-toggled sections over a shared theme:
 
 Simple config under `.gitrack/config/site/` enables or disables each section and
 says where its content lives. The shared page shell is one place to restyle the
-whole site, and the built-in theme ships inline so the site works offline from
-`file://`. Swapping in a custom theme and API layout options are planned. Autolinking of `#refs` works across every section that
-renders authored text — issues, portal, blog, docs, and releases — not just
-issues.
+whole site. A page holds only content and structure; how it looks is a theme, a
+directory of stylesheet and script files that can be swapped without changing a
+page, in the manner of CSS Zen Garden. Themes are plain files, so the site works
+offline from `file://`. API layout options are planned. Autolinking of `#refs`
+works across every section that renders authored text — issues, portal, blog,
+docs, and releases — not just issues.
 
 The goal is the project's **complete web presence** — marketing, blog, docs,
 issues, releases, source, and API — generated from the repo and tracker with

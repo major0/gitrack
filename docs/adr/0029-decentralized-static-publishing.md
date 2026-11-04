@@ -1,7 +1,9 @@
 # ADR-0029: Rendered output is static and deployable to decentralized transports
 
 ## Status
-accepted
+accepted. The wish to "vendor or inline" assets is superseded in one respect by
+ADR-0048: the stylesheet and scripts are now separate files linked by a relative
+path, not inlined. They still work from `file://` and any host.
 
 ## Context
 A stated end-goal (see `docs/VISION.md`) is to run the tracker with **no hosted

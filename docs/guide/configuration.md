@@ -16,7 +16,8 @@ well-behaved path but cannot constrain what the tree physically contains, and
 │   └── <status>          #   that status's allowed next statuses, one per line
 └── site/                 # static-site generator settings
     ├── sections          # enabled site sections, one per line
-    ├── theme             # theme name (only the built-in theme exists today)
+    ├── theme             # theme name (default "default"; also "dark")
+    ├── themes/           # your own themes, one directory each (see Themes)
     ├── portal/           # portal pages (*.md); front.md is the front page
     ├── blog/             # blog posts (*.md)
     ├── highlight         # code color style, or "off" (default github)
@@ -53,13 +54,16 @@ unknown or not-yet-built section name is skipped.
 
 ## Theme
 
-Every page is wrapped in one shared theme: the layout, the navigation bar, and
-the CSS, which is inlined so the site works offline.
+A theme is how the site looks: a stylesheet, and optionally a script and the
+fonts or images the stylesheet uses. The pages themselves are the same whichever
+theme you pick.
 
-Only the built-in theme exists today. `.gitrack/config/site/theme` is read, and
-an absent file, an empty file, or the name `default` selects it. Any other name
-is accepted but falls back to the built-in theme, so setting it changes nothing
-yet. Custom themes are planned.
+`.gitrack/config/site/theme` holds the theme's name. An absent or empty file
+selects `default`. Two themes are built in, `default` and `dark`. A directory
+`.gitrack/config/site/themes/<name>/` with a `theme.css` in it is your own theme,
+and wins over a built-in one of the same name. A name that matches nothing falls
+back to `default`, so a typo never stops the site from being built. See
+[Themes](themes.md) for how to write one.
 
 ## Portal and blog content
 

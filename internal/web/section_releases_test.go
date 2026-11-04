@@ -82,7 +82,7 @@ func TestReleasesSectionRendersIndexAndPages(t *testing.T) {
 	if !strings.Contains(page, "<code>v2.0.0-rc1</code>") {
 		t.Errorf("explicit tag should be shown:\n%s", page)
 	}
-	if !strings.Contains(page, "Shipped (2)") {
+	if !strings.Contains(page, `Shipped <span class="count">2</span>`) {
 		t.Errorf("shipped count missing:\n%s", page)
 	}
 
@@ -94,7 +94,7 @@ func TestReleasesSectionRendersIndexAndPages(t *testing.T) {
 
 	// the shipped track's own page links back to the release that shipped it
 	track := readOut(t, out, "track/"+openIssue+".html")
-	if !strings.Contains(track, "shipped in:") || !strings.Contains(track, `href="../releases/v2-0-0.html"`) {
+	if !strings.Contains(track, "<dt>shipped in</dt>") || !strings.Contains(track, `href="../releases/v2-0-0.html"`) {
 		t.Errorf("shipped track page should link back to its release:\n%s", track)
 	}
 }

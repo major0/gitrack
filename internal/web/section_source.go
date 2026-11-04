@@ -259,6 +259,15 @@ type treeRow struct {
 	Size string
 }
 
+// heading is the name of the page the trail ends on: the page's own title.
+func heading(cs []crumb) string { return cs[len(cs)-1].Name }
+
+// Heading is the directory's name, or "source" for the top.
+func (v treeView) Heading() string { return heading(v.Crumbs) }
+
+// Heading is the file's name.
+func (v blobView) Heading() string { return heading(v.Crumbs) }
+
 // treeView is the template data for a directory page.
 type treeView struct {
 	Crumbs     []crumb

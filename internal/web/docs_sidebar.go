@@ -20,7 +20,7 @@ func rootForHref(href string) string {
 // links. Output is escaped via html/template (ADR-0038 safety).
 func renderSidebar(tree []*navNode, root, currentHref string) template.HTML {
 	var b strings.Builder
-	b.WriteString(`<nav class="docs-nav">`)
+	b.WriteString(`<nav class="docs-nav" aria-label="Documentation">`)
 	writeNavList(&b, tree, root, currentHref)
 	b.WriteString(`</nav>`)
 	return template.HTML(b.String()) //nolint:gosec // labels/hrefs escaped below; structure is ours
@@ -42,7 +42,8 @@ func writeNavList(b *strings.Builder, nodes []*navNode, root, currentHref string
 }
 
 // writeNavNode writes a single node's label: a link for a page entry (marked
-// current when it is the current page), plain text for a group heading.
+// current with aria-current when it is the current page), plain text for a group
+// heading.
 func writeNavNode(b *strings.Builder, n *navNode, root, currentHref string) {
 	label := template.HTMLEscapeString(n.Label)
 	if !n.isPage() {
@@ -51,15 +52,13 @@ func writeNavNode(b *strings.Builder, n *navNode, root, currentHref string) {
 		b.WriteString(`</span>`)
 		return
 	}
-	if n.Href == currentHref {
-		b.WriteString(`<span class="docs-current">`)
-		b.WriteString(label)
-		b.WriteString(`</span>`)
-		return
-	}
 	b.WriteString(`<a href="`)
 	b.WriteString(template.HTMLEscapeString(root + n.Href))
-	b.WriteString(`">`)
+	if n.Href == currentHref {
+		b.WriteString(`" aria-current="page">`)
+	} else {
+		b.WriteString(`">`)
+	}
 	b.WriteString(label)
 	b.WriteString(`</a>`)
 }

@@ -11,10 +11,13 @@ preview.
 git track web --out ./site
 ```
 
-The output is a plain directory with no host coupling: inline CSS (no external
-stylesheet), relative links (works from any subpath or `file://`), and no
-network dependency for core content. Deploy it by copying the directory anywhere
-(see [Publishing](publishing.md)).
+The output is a plain directory with no host coupling: pages hold content only,
+the stylesheet and scripts are files under `assets/` linked by relative path
+(works from any subpath or `file://`), and there is no network dependency for core
+content. Generation writes only the files it owns and never clears a directory, so
+`--out` can safely point somewhere that holds other things. Deploy it by copying
+the directory anywhere (see [Publishing](publishing.md)). To change how the site
+looks without touching its content, see [Themes](themes.md).
 
 ## Live preview
 
@@ -187,10 +190,10 @@ announced to screen readers.
 - It applies to fenced and indented code blocks in docs, blog, portal, and
   release-notes pages, and to the files on source pages. It does not appear on
   commit patches, the board's graph, commit messages, or issue descriptions.
-- It is added by a short script on the page, so a visitor with JavaScript turned
-  off sees no button and no broken control. If your host sets a strict
-  content-security policy that forbids inline scripts, the buttons will not appear
-  either, and nothing else is affected.
+- It is added by a short script, `assets/gitrack.js`, so a visitor with JavaScript
+  turned off sees no button and no broken control. The page has no inline script,
+  so a strict content-security policy that allows scripts from your own site
+  works unchanged.
 - To leave the script out of every page, put `off` in
   `.gitrack/config/site/copy`:
 
@@ -218,14 +221,15 @@ recent commits with a page each. Two optional files, `source/ref` and
 
 ## What's static and what's enhanced
 
-Everything the site needs to be usable is static HTML with inline CSS. Two small
+Everything the site needs to be usable is static HTML and a stylesheet; the pages
+read in order with the stylesheet and scripts both turned off. Two small
 enhancements sit on top, and the site is fully functional without either:
 
-- **The board's dependency graph**, drawn by Mermaid when the page has network
-  access, above the always-present Ready/Blocked lists. This is the only part of
-  the site that ever reaches for the network.
-- **The code-block copy button**, a short inline script that adds a "Copy" button
+- **The board's dependency graph**, drawn by Mermaid (`assets/board.js`) when the
+  page has network access, above the always-present Ready/Blocked lists. This is
+  the only part of the site that ever reaches for the network.
+- **The code-block copy button** (`assets/gitrack.js`), which adds a "Copy" button
   to code blocks. It needs no network and no library. Where JavaScript is off, or
-  a host's security policy blocks inline scripts, the page simply has no button.
+  a host blocks scripts, the page simply has no button.
 
 Offline or on a dumb host, nothing is lost but those two conveniences.

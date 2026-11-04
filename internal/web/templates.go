@@ -2,6 +2,7 @@ package web
 
 import (
 	"html/template"
+	"time"
 
 	"github.com/major0/gitrack/internal/core"
 )
@@ -34,100 +35,143 @@ var shellTmpl = template.Must(template.New("shell").Parse(`<!doctype html>
 {{range .Scripts}}<script src="{{$.Root}}{{.}}"></script>
 {{end}}</body></html>`))
 
-// indexBodyTmpl lists all tracks. Pure HTML, no script.
+// The content templates below say what things are, not how they look. Anything
+// that is only decoration (separators between meta items, arrows on back links,
+// brackets around a status, the dash before a subject) is left to the theme's
+// stylesheet. Hooks for styling are class names that name a role (meta, empty,
+// note, count) and data-* attributes that carry a value (data-state,
+// data-status, data-kind). See ADR-0048.
+
+// indexBodyTmpl lists all tracks.
 var indexBodyTmpl = template.Must(template.New("index").Funcs(tmplFuncs).Parse(`
 <h1>Tracks</h1>
-<table>
-<tr><th>id</th><th>state</th><th>status</th><th>kind</th><th>title</th></tr>
-{{range .}}<tr>
+<table class="tracks">
+<thead><tr><th>id</th><th>state</th><th>status</th><th>kind</th><th>title</th></tr></thead>
+<tbody>
+{{range .}}<tr data-state="{{.State}}" data-status="{{.Status}}" data-kind="{{.Kind}}">
 <td><a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a></td>
-<td{{if eq .State "closed"}} class="state-closed"{{end}}>{{.State}}</td>
+<td>{{.State}}</td>
 <td>{{.Status}}</td><td>{{.Kind}}</td><td>{{.Title}}</td>
 </tr>
-{{else}}<tr><td colspan="5" class="muted">no tracks</td></tr>{{end}}
+{{else}}<tr><td colspan="5" class="empty">no tracks</td></tr>{{end}}
+</tbody>
 </table>`))
 
 // issuesBodyTmpl renders the GitHub-issues-style work view: Open and Closed
-// sections, each row showing status, kind, labels, assignees, and title. Pure
-// HTML, no script.
+// sections, each row showing status, kind, labels, assignees, and title.
 var issuesBodyTmpl = template.Must(template.New("issues").Funcs(tmplFuncs).Parse(`
 <h1>Issues</h1>
-<h2 class="ready">Open ({{len .Open}})</h2>
+<section class="issues-open" data-state="open">
+<h2>Open <span class="count">{{len .Open}}</span></h2>
 <ul class="issues">
-{{range .Open}}<li>
+{{range .Open}}<li data-state="open" data-status="{{.Status}}" data-kind="{{.Kind}}">
 <a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a>
-<b>{{.Title}}</b>
-<span class="muted">{{.Kind}} &middot; {{.Status}}
-{{- range .Labels}} &middot; <span class="label">{{.}}</span>{{end}}
-{{- if .Assignees}} &middot; @{{range $i,$a := .Assignees}}{{if $i}},{{end}}{{$a}}{{end}}{{end}}</span>
+<span class="title">{{.Title}}</span>
+<ul class="meta">
+<li class="kind">{{.Kind}}</li>
+<li class="status">{{.Status}}</li>
+{{range .Labels}}<li class="label">{{.}}</li>
+{{end}}{{if .Assignees}}<li class="assignees">{{range $i,$a := .Assignees}}{{if $i}}, {{end}}<span class="assignee">{{$a}}</span>{{end}}</li>
+{{end}}</ul>
 </li>
-{{else}}<li class="muted">no open issues</li>{{end}}
+{{else}}<li class="empty">no open issues</li>{{end}}
 </ul>
-<h2 class="muted">Closed ({{len .Closed}})</h2>
+</section>
+<section class="issues-closed" data-state="closed">
+<h2>Closed <span class="count">{{len .Closed}}</span></h2>
 <ul class="issues">
-{{range .Closed}}<li>
+{{range .Closed}}<li data-state="closed" data-status="{{.Status}}" data-kind="{{.Kind}}">
 <a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a>
-<span class="state-closed">{{.Title}}</span>
-<span class="muted">{{.Kind}} &middot; {{.Status}}</span>
+<span class="title">{{.Title}}</span>
+<ul class="meta">
+<li class="kind">{{.Kind}}</li>
+<li class="status">{{.Status}}</li>
+</ul>
 </li>
-{{else}}<li class="muted">no closed issues</li>{{end}}
-</ul>`))
+{{else}}<li class="empty">no closed issues</li>{{end}}
+</ul>
+</section>`))
 
-// trackBodyTmpl renders one track. Pure HTML.
+// trackBodyTmpl renders one track.
 var trackBodyTmpl = template.Must(template.New("track").Funcs(tmplFuncs).Parse(`
-<p><a href="../index.html">&larr; all tracks</a></p>
+<p class="back"><a href="../index.html">all tracks</a></p>
+<article class="track" data-state="{{.Track.State}}" data-status="{{.Track.Status}}" data-kind="{{.Track.Kind}}">
 <h1>{{.Track.Title}}</h1>
-<dl>
+<dl class="fields">
 <dt>id</dt><dd><code>{{.Track.ID}}</code></dd>
 <dt>slug</dt><dd>{{.Track.Slug}}</dd>
 <dt>kind</dt><dd>{{.Track.Kind}}</dd>
 <dt>state</dt><dd>{{.Track.State}}</dd>
 <dt>status</dt><dd>{{.Track.Status}}</dd>
 </dl>
-{{range $rel, $targets := .Track.Relations}}<p><b>{{$rel}}:</b>
-{{range $i, $t := $targets}}{{if $i}}, {{end}}<a href="{{$t}}.html"><code>{{short $t}}</code></a>{{end}}</p>
-{{end}}{{if .ShippedIn}}<p><b>shipped in:</b>
-{{range $i, $r := .ShippedIn}}{{if $i}}, {{end}}<a href="{{$r.Href}}">{{$r.Title}}</a>{{end}}</p>{{end}}
-{{if .Track.Description}}<h2>Description</h2><pre>{{.DescHTML}}</pre>{{end}}
-{{if .Mentions}}<h2>Mentions</h2>
+{{if or .Track.Relations .ShippedIn}}<dl class="relations">
+{{range $rel, $targets := .Track.Relations}}<dt>{{$rel}}</dt>
+<dd>{{range $i, $t := $targets}}{{if $i}}, {{end}}<a href="{{$t}}.html"><code>{{short $t}}</code></a>{{end}}</dd>
+{{end}}{{if .ShippedIn}}<dt>shipped in</dt>
+<dd>{{range $i, $r := .ShippedIn}}{{if $i}}, {{end}}<a href="{{$r.Href}}">{{$r.Title}}</a>{{end}}</dd>
+{{end}}</dl>{{end}}
+{{if .Track.Description}}<section class="description-section"><h2>Description</h2><pre class="description">{{.DescHTML}}</pre></section>{{end}}
+{{if .Mentions}}<section class="mentions"><h2>Mentions</h2>
 <ul>
-{{range .Mentions}}<li>{{if .Href}}<a href="{{.Href}}"><code>{{.Short}}</code></a>{{else}}<code>{{.Short}}</code>{{end}} <b>{{.Verb}}</b> &mdash; {{.Subject}}</li>
-{{end}}</ul>{{end}}
-{{if .Comments}}<h2>Comments</h2>
+{{range .Mentions}}<li>{{if .Href}}<a href="{{.Href}}"><code class="sha">{{.Short}}</code></a>{{else}}<code class="sha">{{.Short}}</code>{{end}} <span class="verb">{{.Verb}}</span> <span class="subject">{{.Subject}}</span></li>
+{{end}}</ul></section>{{end}}
+{{if .Comments}}<section class="comments"><h2>Comments</h2>
 {{range .Comments}}{{template "comment" .}}{{end}}
-{{end}}
+</section>{{end}}
+</article>
 {{define "comment"}}
-<div class="comment">
-  <div class="muted">{{if .Author}}{{.Author}}{{else}}unknown{{end}}{{if .Created}} &middot; {{.Created}}{{end}} &middot; <code>{{slice .ID 0 8}}</code></div>
-  <div class="comment-body">{{.BodyHTML}}</div>
+<article class="comment">
+  <header class="comment-meta">
+    <span class="author">{{if .Author}}{{.Author}}{{else}}unknown{{end}}</span>
+    {{if .Created}}<time datetime="{{isotime .Created}}">{{.Created}}</time>
+    {{end}}<code class="sha">{{slice .ID 0 8}}</code>
+  </header>
+  <pre class="comment-body">{{.BodyHTML}}</pre>
   {{if .Replies}}<div class="replies">{{range .Replies}}{{template "comment" .}}{{end}}</div>{{end}}
-</div>
+</article>
 {{end}}`))
 
-// boardBodyTmpl renders the Ready/Blocked board (offline-complete, pure HTML)
-// plus the dependency digraph as a PROGRESSIVE ENHANCEMENT: Mermaid via CDN
-// draws it when online, and the HTML lists above remain the usable fallback
-// offline (ADR-0029). The raw Mermaid source is also linked for reuse.
+// boardBodyTmpl renders the Ready/Blocked board (offline-complete HTML) plus the
+// dependency digraph as a PROGRESSIVE ENHANCEMENT: assets/board.js draws it with
+// Mermaid from a CDN when online, and the lists above remain the usable fallback
+// offline (ADR-0029). The raw Mermaid source stays readable in the <pre>.
 var boardBodyTmpl = template.Must(template.New("boardbody").Funcs(tmplFuncs).Parse(`
 <h1>Board</h1>
-<h2 class="ready">Ready ({{len .Ready}})</h2>
+<section class="board-ready" data-state="ready">
+<h2>Ready <span class="count">{{len .Ready}}</span></h2>
 <ul>
-{{range .Ready}}<li><a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a> [{{.Status}}] {{.Title}}</li>
-{{else}}<li class="muted">nothing ready</li>{{end}}
+{{range .Ready}}<li data-status="{{.Status}}"><a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a> <span class="status">{{.Status}}</span> <span class="title">{{.Title}}</span></li>
+{{else}}<li class="empty">nothing ready</li>{{end}}
 </ul>
-<h2 class="blocked">Blocked ({{len .Blocked}})</h2>
+</section>
+<section class="board-blocked" data-state="blocked">
+<h2>Blocked <span class="count">{{len .Blocked}}</span></h2>
 <ul>
-{{range .Blocked}}<li><a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a> [{{.Status}}] {{.Title}}
-<span class="muted">&mdash; waiting on {{range $i,$b := .OpenBlockers}}{{if $i}}, {{end}}<code>{{short $b}}</code>{{end}}</span></li>
-{{else}}<li class="muted">nothing blocked</li>{{end}}
+{{range .Blocked}}<li data-status="{{.Status}}"><a href="track/{{.ID}}.html"><code>{{short .ID}}</code></a> <span class="status">{{.Status}}</span> <span class="title">{{.Title}}</span>
+<span class="waiting">waiting on {{range $i,$b := .OpenBlockers}}{{if $i}}, {{end}}<code>{{short $b}}</code>{{end}}</span></li>
+{{else}}<li class="empty">nothing blocked</li>{{end}}
 </ul>
+</section>
+<section class="graph">
 <h2>Dependency graph</h2>
-<p class="muted">The lists above are the offline view. The graph below renders when online.</p>
+<p class="note">The lists above are the offline view. The graph below renders when online.</p>
 <pre class="mermaid">
 {{.Mermaid}}
-</pre>`))
+</pre>
+</section>`))
 
-var tmplFuncs = template.FuncMap{"short": short}
+var tmplFuncs = template.FuncMap{"short": short, "isotime": isotime}
+
+// isotime turns a displayed timestamp into the machine-readable form <time
+// datetime> wants. A plain date, or text it cannot read, is returned as written.
+func isotime(s string) string {
+	for _, layout := range []string{"2006-01-02 15:04 UTC", time.RFC3339, "2006-01-02T15:04:05"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+	return s
+}
 
 // boardView is the data passed to the board template.
 type boardView struct {
@@ -136,25 +180,26 @@ type boardView struct {
 	Mermaid string
 }
 
-// postBodyTmpl renders one blog post: title, optional date meta, then the
-// already-rendered Markdown body (ADR-0039). Pure HTML, no script.
-var postBodyTmpl = template.Must(template.New("post").Parse(`
-<p><a href="index.html">&larr; all posts</a></p>
+// postBodyTmpl renders one blog post: title, optional date, then the
+// already-rendered Markdown body (ADR-0039).
+var postBodyTmpl = template.Must(template.New("post").Funcs(tmplFuncs).Parse(`
+<p class="back"><a href="index.html">all posts</a></p>
+<article class="post">
 <h1>{{.Title}}</h1>
-{{if .Date}}<p class="post-meta">{{.Date}}</p>{{end}}
-{{.BodyHTML}}`))
+{{if .Date}}<p class="meta"><time datetime="{{isotime .Date}}">{{.Date}}</time></p>{{end}}
+{{.BodyHTML}}
+</article>`))
 
-// blogIndexTmpl lists posts newest-first (ADR-0039). Pure HTML, no script.
-var blogIndexTmpl = template.Must(template.New("blogindex").Parse(`
+// blogIndexTmpl lists posts newest-first (ADR-0039).
+var blogIndexTmpl = template.Must(template.New("blogindex").Funcs(tmplFuncs).Parse(`
 <h1>Blog</h1>
 <ul class="posts">
-{{range .}}<li>{{if .Date}}<span class="date">{{.Date}}</span>{{end}}<a href="{{.Slug}}.html">{{.Title}}</a></li>
-{{else}}<li class="muted">no posts</li>{{end}}
+{{range .}}<li>{{if .Date}}<time class="date" datetime="{{isotime .Date}}">{{.Date}}</time> {{end}}<a href="{{.Slug}}.html">{{.Title}}</a></li>
+{{else}}<li class="empty">no posts</li>{{end}}
 </ul>`))
 
 // docsBodyTmpl renders a docs page: the sidebar layout and the doc content side
-// by side (ADR-0040). The sidebar and content are pre-rendered HTML. Pure HTML,
-// no script.
+// by side (ADR-0040). The sidebar and content are pre-rendered HTML.
 var docsBodyTmpl = template.Must(template.New("docs").Parse(`
 <div class="docs-layout">
 {{.Sidebar}}
@@ -163,24 +208,32 @@ var docsBodyTmpl = template.Must(template.New("docs").Parse(`
 </article>
 </div>`))
 
-// releasesIndexTmpl lists releases newest-first (ADR-0041). It reuses the blog
-// index styling. Pure HTML, no script.
-var releasesIndexTmpl = template.Must(template.New("releasesindex").Parse(`
+// releasesIndexTmpl lists releases newest-first (ADR-0041).
+var releasesIndexTmpl = template.Must(template.New("releasesindex").Funcs(tmplFuncs).Parse(`
 <h1>Releases</h1>
 <ul class="posts">
-{{range .}}<li>{{if .Date}}<span class="date">{{.Date}}</span>{{end}}<a href="{{.Slug}}.html">{{.Title}}</a>
-<span class="muted">{{if .Released}}released{{else}}upcoming{{end}} &middot; {{.Shipped}} shipped</span></li>
-{{else}}<li class="muted">no releases</li>{{end}}
+{{range .}}<li data-state="{{if .Released}}released{{else}}upcoming{{end}}">{{if .Date}}<time class="date" datetime="{{isotime .Date}}">{{.Date}}</time> {{end}}<a href="{{.Slug}}.html">{{.Title}}</a>
+<ul class="meta">
+<li class="state">{{if .Released}}released{{else}}upcoming{{end}}</li>
+<li class="count">{{.Shipped}} shipped</li>
+</ul></li>
+{{else}}<li class="empty">no releases</li>{{end}}
 </ul>`))
 
-// releaseBodyTmpl renders one release: meta line, the notes (already-rendered
-// Markdown), and the tracks it shipped (ADR-0041). Pure HTML, no script.
-var releaseBodyTmpl = template.Must(template.New("release").Parse(`
-<p><a href="index.html">&larr; all releases</a></p>
+// releaseBodyTmpl renders one release: meta list, the notes (already-rendered
+// Markdown), and the tracks it shipped (ADR-0041).
+var releaseBodyTmpl = template.Must(template.New("release").Funcs(tmplFuncs).Parse(`
+<p class="back"><a href="index.html">all releases</a></p>
+<article class="release" data-state="{{if .Released}}released{{else}}upcoming{{end}}">
 <h1>{{.Title}}</h1>
-<p class="post-meta">{{if .Date}}{{.Date}} &middot; {{end}}{{if .Released}}released{{else}}upcoming{{end}}{{if .Tag}} &middot; tag <code>{{.Tag}}</code>{{end}}</p>
+<ul class="meta">
+{{if .Date}}<li><time datetime="{{isotime .Date}}">{{.Date}}</time></li>
+{{end}}<li class="state">{{if .Released}}released{{else}}upcoming{{end}}</li>
+{{if .Tag}}<li class="tag">tag <code>{{.Tag}}</code></li>
+{{end}}</ul>
 {{.NotesHTML}}
-{{if .Shipped}}<h2>Shipped ({{len .Shipped}})</h2>
+{{if .Shipped}}<section class="shipped"><h2>Shipped <span class="count">{{len .Shipped}}</span></h2>
 <ul>
-{{range .Shipped}}<li>{{if .Link}}<a href="../track/{{.ID}}.html">{{.Title}}</a>{{else}}{{.Title}}{{end}} <span class="muted">{{.State}}</span></li>
-{{end}}</ul>{{end}}`))
+{{range .Shipped}}<li data-state="{{.State}}">{{if .Link}}<a href="../track/{{.ID}}.html">{{.Title}}</a>{{else}}{{.Title}}{{end}} <span class="state">{{.State}}</span></li>
+{{end}}</ul></section>{{end}}
+</article>`))

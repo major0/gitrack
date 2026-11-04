@@ -181,3 +181,39 @@ func TestBoardPageLoadsItsScriptAsAFile(t *testing.T) {
 		t.Errorf("only the board page loads the board script")
 	}
 }
+
+// Every built-in theme can be selected by name, and choosing one changes the
+// stylesheet and nothing in any page.
+func TestBuiltinThemesSwapWithoutChangingPages(t *testing.T) {
+	entries, err := builtinThemes.ReadDir("themes")
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) < 2 {
+		t.Fatalf("expected at least the default and one other built-in theme, got %d", len(entries))
+	}
+	repo := pureSiteRepo(t)
+	base := generate(t, repo)
+	basePages := allPages(t, base)
+	baseCSS := readOut(t, base, themeCSSAsset)
+	for _, e := range entries {
+		name := e.Name()
+		if name == defaultThemeName {
+			continue
+		}
+		writeSiteFile(t, repo, "theme", name+"\n")
+		out := generate(t, repo)
+		if readOut(t, out, themeCSSAsset) == baseCSS {
+			t.Errorf("theme %q should have its own stylesheet", name)
+		}
+		pages := allPages(t, out)
+		if len(pages) != len(basePages) {
+			t.Errorf("theme %q: %d pages, default has %d", name, len(pages), len(basePages))
+		}
+		for rel, page := range basePages {
+			if pages[rel] != page {
+				t.Errorf("theme %q: %s differs from the default theme's page", name, rel)
+			}
+		}
+	}
+}

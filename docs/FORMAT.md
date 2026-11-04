@@ -430,8 +430,9 @@ follow-ons.
 tracker: a tracks index, an **issues view** (`issues.html` — GitHub-style, open
 tracks over closed, each row showing status/kind/labels/assignees and linking to
 the track page), a page per track, and a board page. The output
-is offline-capable and host-neutral — inline CSS (no external
-stylesheet), all links relative (works from `file://` or any subpath), and no
+is offline-capable and host-neutral — pages hold content and structure
+only, with the stylesheet and scripts as separate files under `assets/` linked by
+relative path; all links relative (works from `file://` or any subpath), and no
 network dependency for core content. The board's dependency digraph is a
 progressive enhancement (Mermaid) sitting above the always-present HTML
 Ready/Blocked lists, so the page stays usable offline.

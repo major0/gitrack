@@ -1,7 +1,10 @@
 # ADR-0047: A copy button on code blocks, as a small inline script
 
 ## Status
-accepted
+accepted. The script is no longer inline: ADR-0048 moved it to `assets/gitrack.js`,
+loaded by a `<script src>` at the end of the body. The statements below about an
+inline script, and about the button's styles living in the page, are superseded by
+that. Everything else stands.
 
 ## Context
 Documentation and source pages are full of code a reader wants to paste: install

@@ -1,0 +1,133 @@
+/* gitrack dark theme.
+ *
+ * The same structure as the default theme with a dark palette. Pair it with a dark
+ * code style (for example `monokai` in .gitrack/config/site/highlight): the token
+ * stylesheet is chosen separately from the theme.
+ */
+html{background:#0d1117}
+body{background:#0d1117;color:#c9d1d9}
+a{color:#58a6ff}
+a:visited{color:#a371f7}
+
+/* ---- page ---- */
+body{font-family:system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.5}
+footer{margin-top:2rem;padding-top:.5rem;border-top:1px solid #30363d;color:#8b949e}
+footer p{margin:0}
+
+/* ---- site navigation ---- */
+.site-nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 1rem}
+.site-nav a[aria-current="page"]{font-weight:600;text-decoration:none;color:inherit}
+body[data-section="issues"] .site-nav li[data-section="issues"] a,
+body[data-section="docs"] .site-nav li[data-section="docs"] a,
+body[data-section="blog"] .site-nav li[data-section="blog"] a,
+body[data-section="releases"] .site-nav li[data-section="releases"] a,
+body[data-section="source"] .site-nav li[data-section="source"] a,
+body[data-section="portal"] .site-nav li[data-section="portal"] a{text-decoration-thickness:2px}
+
+/* ---- common ---- */
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:.3rem .5rem;border-bottom:1px solid #30363d}
+code{background:#161b22;padding:0 .2rem;border-radius:3px}
+blockquote{margin:.5rem 0;padding:.2rem .8rem;border-left:3px solid #30363d;color:#8b949e}
+pre{background:#161b22;padding:.6rem;border-radius:4px;overflow:auto}
+pre code{background:none;padding:0}
+.empty,.note{color:#8b949e}
+.count::before{content:"("}
+.count::after{content:")"}
+.sha{color:#8b949e}
+.back{margin:0 0 .6rem}
+.back a::before{content:"\2190\00a0"}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* a row of small facts: items run together, separated by a dot */
+ul.meta{list-style:none;margin:.2rem 0 .6rem;padding:0;display:flex;flex-wrap:wrap;color:#8b949e;font-size:.9em}
+ul.meta>li+li::before{content:"\00b7";margin:0 .45em}
+p.meta{color:#8b949e;font-size:.9em;margin:-.3rem 0 1rem}
+
+/* ---- states ---- */
+[data-state="closed"] .title,
+tr[data-state="closed"]{color:#6e7681}
+.board-ready>h2{color:#3fb950}
+.board-blocked>h2{color:#f0883e}
+.issues-closed>h2{color:#8b949e}
+.waiting::before{content:"\2014\00a0"}
+.waiting{color:#8b949e}
+.board-ready .status::before,.board-blocked .status::before{content:"["}
+.board-ready .status::after,.board-blocked .status::after{content:"]"}
+
+/* ---- issues ---- */
+ul.issues{list-style:none;padding:0}
+ul.issues>li{padding:.3rem 0;border-bottom:1px solid #21262d}
+ul.issues .title{font-weight:600}
+ul.issues [data-state="closed"] .title,ul.issues>li[data-state="closed"] .title{font-weight:400;color:#6e7681}
+ul.issues ul.meta{display:inline-flex;margin:0 0 0 .4rem}
+.label{background:#1f2a44;border-radius:3px;padding:0 .3rem;font-size:.85em}
+.assignees::before{content:"@"}
+.assignee+.assignee::before{content:""}
+
+/* ---- a track ---- */
+.relations dt,.fields dt{font-weight:600}
+.relations dt::after{content:":"}
+.mentions .verb{font-weight:600}
+.mentions .subject::before{content:"\2014\00a0"}
+pre.description{white-space:pre-wrap;font:inherit;background:none;padding:0}
+.comment{border:1px solid #21262d;border-radius:4px;padding:.4rem .6rem;margin:.5rem 0}
+.comment-meta{color:#8b949e;font-size:.9em}
+.comment-meta>*+*::before{content:"\00b7";margin:0 .45em}
+pre.comment-body{white-space:pre-wrap;font:inherit;background:none;padding:0;margin:.3rem 0}
+.replies{margin-left:1.2rem;border-left:2px solid #21262d;padding-left:.6rem}
+pre.mermaid{background:#161b22;border:1px solid #21262d;padding:.5rem;overflow:auto}
+
+/* ---- blog and releases ---- */
+ul.posts{list-style:none;padding:0}
+ul.posts>li{padding:.4rem 0;border-bottom:1px solid #21262d}
+ul.posts .date{color:#8b949e;font-size:.9em;margin-right:.5rem}
+ul.posts ul.meta{display:inline-flex;margin:0 0 0 .5rem}
+.shipped .state{color:#8b949e}
+
+/* ---- source ---- */
+.crumbs ol{list-style:none;margin:.2rem 0 .6rem;padding:0;display:flex;flex-wrap:wrap}
+.crumbs li+li::before{content:"/";margin:0 .45em}
+.crumbs [aria-current="page"]{font-weight:600}
+table.tree td.size{text-align:right;white-space:nowrap}
+table.changes td.stat-add::before{content:"+"}
+table.changes td.stat-del::before{content:"\2212"}
+pre.blob{counter-reset:ln;line-height:1.35}
+pre.blob .src-line{counter-increment:ln}
+pre.blob .src-line::before{content:counter(ln);display:inline-block;width:3.5em;margin-right:1em;text-align:right;color:#6e7681;user-select:none}
+pre.blob .src-line:target{background:#3a3000}
+pre.msg{white-space:pre-wrap;background:none;padding:0}
+pre.diff .add{background:#12261e}
+pre.diff .del{background:#3c1618}
+pre.diff .hunk{color:#58a6ff}
+pre.diff .hdr{color:#8b949e;font-weight:600}
+.stat-add{color:#3fb950}
+.stat-del{color:#f0883e}
+
+/* ---- docs ---- */
+.docs-layout{display:flex;gap:1.5rem;align-items:flex-start}
+.docs-nav{flex:0 0 14rem;font-size:.95em}
+.docs-nav ul{list-style:none;padding-left:.8rem;margin:.2rem 0}
+.docs-nav>ul{padding-left:0}
+.docs-nav li{margin:.15rem 0}
+.docs-group{color:#8b949e;font-weight:600}
+.docs-nav a[aria-current="page"]{font-weight:600;text-decoration:none;color:inherit}
+.docs-content{flex:1 1 auto;min-width:0}
+@media(max-width:48rem){.docs-layout{display:block}.docs-nav{margin-bottom:1rem}}
+
+/* ---- table of contents and heading anchors ---- */
+.toc{border:1px solid #30363d;background:#161b22;border-radius:4px;padding:.5rem .9rem;margin:1rem 0;font-size:.95em}
+.toc-title{margin:0 0 .3rem;font-weight:600;color:#8b949e}
+.toc ul{list-style:none;margin:0;padding-left:0}
+.toc ul ul{padding-left:1.1rem}
+.toc li{margin:.15rem 0}
+.anchor{margin-left:.35em;font-size:0;text-decoration:none;color:#6e7681;opacity:0}
+.anchor::after{content:"\00b6";content:"\00b6" / "";font-size:1rem}
+h1:hover>.anchor,h2:hover>.anchor,h3:hover>.anchor,h4:hover>.anchor,h5:hover>.anchor,h6:hover>.anchor,.anchor:focus{opacity:1}
+@media(hover:none){.anchor{opacity:.5}}
+
+/* ---- copy button (added by assets/gitrack.js) ---- */
+.code-wrap{position:relative}
+.copy-btn{position:absolute;top:.35rem;right:.35rem;font:inherit;font-size:.8rem;line-height:1.4;padding:.05rem .55rem;border:1px solid #484f58;border-radius:3px;background:#21262d;color:#c9d1d9;cursor:pointer;opacity:0;user-select:none;-webkit-user-select:none}
+.code-wrap:hover>.copy-btn,.copy-btn:focus{opacity:1}
+@media(hover:none){.copy-btn{opacity:.75}}

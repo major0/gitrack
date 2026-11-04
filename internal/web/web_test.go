@@ -114,11 +114,11 @@ func TestGenerateIssuesView(t *testing.T) {
 	}
 	s := string(issues)
 	// open section has the open track; closed section has the done one
-	if !strings.Contains(s, "Open (1)") {
-		t.Errorf("expected Open (1); got page:\n%s", s)
+	if !strings.Contains(s, `Open <span class="count">1</span>`) {
+		t.Errorf("expected an Open count of 1; got page:\n%s", s)
 	}
-	if !strings.Contains(s, "Closed (1)") {
-		t.Errorf("expected Closed (1)")
+	if !strings.Contains(s, `Closed <span class="count">1</span>`) {
+		t.Errorf("expected a Closed count of 1")
 	}
 	if !strings.Contains(s, "Still open") || !strings.Contains(s, "Already done") {
 		t.Error("issues page missing a track title")

@@ -33,6 +33,8 @@ by subject:
   recent commits, as static pages.
 - [The project website](guide/website.md) — generate a static site: issues,
   portal, blog, docs, and releases sections, plus the live preview server.
+- [Themes](guide/themes.md) — change how the site looks without touching its
+  content: built-in themes, and writing your own.
 - [Configuration](guide/configuration.md) — every `.gitrack/config/` knob:
   kinds, statuses, and the site config.
 - [Publishing](guide/publishing.md) — deploy the static site to Pages, S3, a

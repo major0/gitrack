@@ -355,7 +355,7 @@ func TestSourceHelpers(t *testing.T) {
 // to a commit page that really exists in the output, or plain with no link.
 func assertMentionLink(t *testing.T, page, out string, m core.Mention, linked bool) {
 	t.Helper()
-	link := `<a href="../source/commit/` + m.SHA + `.html"><code>` + m.Short + `</code></a>`
+	link := `<a href="../source/commit/` + m.SHA + `.html"><code class="sha">` + m.Short + `</code></a>`
 	if linked {
 		if !strings.Contains(page, link) {
 			t.Errorf("mention %s should link to its commit page:\n%s", m.Short, page)
@@ -365,8 +365,8 @@ func assertMentionLink(t *testing.T, page, out string, m core.Mention, linked bo
 		}
 		return
 	}
-	// the unlinked form is byte-for-byte the markup this list had before linking existed
-	if !strings.Contains(page, "<li><code>"+m.Short+"</code> <b>") {
+	// the unlinked form is the same entry without the anchor
+	if !strings.Contains(page, `<li><code class="sha">`+m.Short+`</code> <span class="verb">`) {
 		t.Errorf("mention %s should still be listed in the original plain form:\n%s", m.Short, page)
 	}
 	if strings.Contains(page, "source/commit/"+m.SHA) {
